@@ -1,0 +1,49 @@
+name: Tournament Info Monitor
+
+on:
+  schedule:
+    # Run every 5 minutes (GitHub Actions minimum cron interval)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  run-info:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Node Modules & Playwright Browsers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+          key: ${{ runner.os }}-node-playwright-${{ hashFiles('**/package-lock.json', 'package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-playwright-
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Install Playwright Browsers & System Dependencies
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Tournament Info Task
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT || '3306' }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DISCORD_CITY_WEBHOOK: ${{ secrets.DISCORD_CITY_WEBHOOK }}
+          DISCORD_OTHER_WEBHOOK: ${{ secrets.DISCORD_OTHER_WEBHOOK }}
+          PM_NOTIFY_DRYRUN: 'false'
+          HEADLESS: 'true'
+        run: npm run info

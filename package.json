@@ -1,0 +1,27 @@
+{
+  "name": "tcg-runner",
+  "version": "1.0.0",
+  "description": "Pokemon Card Players Club Fetcher & Discord Notifier with Playwright (VPS Pattern B)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "info": "node src/index.js --task=info",
+    "info:dryrun": "PM_NOTIFY_DRYRUN=true node src/index.js --task=info",
+    "rank": "node src/index.js --task=rank",
+    "result": "node src/index.js --task=result"
+  },
+  "keywords": [
+    "pokemimi",
+    "playwright",
+    "discord",
+    "pokemon-card"
+  ],
+  "author": "Pokemimi Team",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.11.0",
+    "playwright": "^1.46.0"
+  }
+}
