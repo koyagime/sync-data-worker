@@ -41,6 +41,13 @@ jobs:
           API_KEY: ${{ secrets.API_KEY || 'pokemimi_secret_api_key_2026_x89a' }}
           DISCORD_CITY_WEBHOOK: ${{ secrets.DISCORD_CITY_WEBHOOK }}
           DISCORD_OTHER_WEBHOOK: ${{ secrets.DISCORD_OTHER_WEBHOOK }}
+          DISCORD_WEBHOOK_KANTO: ${{ secrets.DISCORD_WEBHOOK_KANTO }}
+          DISCORD_WEBHOOK_KANSAI: ${{ secrets.DISCORD_WEBHOOK_KANSAI }}
+          DISCORD_WEBHOOK_CHUBU: ${{ secrets.DISCORD_WEBHOOK_CHUBU }}
+          DISCORD_WEBHOOK_HOKURIKU: ${{ secrets.DISCORD_WEBHOOK_HOKURIKU }}
+          DISCORD_WEBHOOK_TOHOKU: ${{ secrets.DISCORD_WEBHOOK_TOHOKU }}
+          DISCORD_WEBHOOK_CHUSHIKOKU: ${{ secrets.DISCORD_WEBHOOK_CHUSHIKOKU }}
+          DISCORD_WEBHOOK_KYUSHU: ${{ secrets.DISCORD_WEBHOOK_KYUSHU }}
           PM_NOTIFY_DRYRUN: 'false'
           HEADLESS: 'true'
         run: npm run info
