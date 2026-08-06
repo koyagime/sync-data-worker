@@ -51,12 +51,20 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add state/
           git diff --quiet && git diff --staged --quiet && echo "state に変化なし" && exit 0
+          # ⚠ state は毎回まるごと作り直すファイル。別の実行と衝突すると rebase では解決できない
+          #    （同じ JSON を両方が書き換えるため必ず CONFLICT になる。2026-08-07 に実際に踏んだ）。
+          #    → 取り込んでから **今回作った state を上書きし直す**。衝突しようがない形にする。
+          KEEP=$(mktemp -d); cp -R state/. "$KEEP"/
           git commit -m "Auto-update player rank state tracking [skip ci]"
-          # ⚠ 別の実行が先に push していることがある。取り込んでからやり直す。
           for i in 1 2 3 4 5; do
             git push && exit 0
-            echo "push が弾かれた（$i 回目）。取り込んで再試行する"
-            git pull --rebase --autostash origin "${{ github.ref_name }}" || exit 1
+            echo "push が弾かれた（$i 回目）。取り込んで作り直した state を載せ直す"
+            git fetch origin "${{ github.ref_name }}" || exit 1
+            git reset --hard "origin/${{ github.ref_name }}" || exit 1
+            rm -rf state && mkdir -p state && cp -R "$KEEP"/. state/
+            git add state/
+            if git diff --staged --quiet; then echo "取り込んだら差分なし（別の実行が同じ内容を入れた）"; exit 0; fi
+            git commit -m "Auto-update player rank state tracking [skip ci]"
             sleep $((i * 3))
           done
           echo "5回試しても push できなかった" >&2; exit 1
