@@ -10,6 +10,9 @@ jobs:
   run-result:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -41,3 +44,10 @@ jobs:
           API_KEY: ${{ secrets.API_KEY || 'pokemimi_secret_api_key_2026_x89a' }}
           HEADLESS: 'true'
         run: npm run result
+
+      - name: Commit and Push State File
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update tournament result state tracking [skip ci]" && git push)
