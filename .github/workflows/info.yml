@@ -12,6 +12,9 @@ jobs:
   run-info:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -53,3 +56,10 @@ jobs:
           PM_NOTIFY_DRYRUN: 'false'
           HEADLESS: 'true'
         run: npm run info
+
+      - name: Commit and Push State File
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update tournament info state tracking [skip ci]" && git push)
