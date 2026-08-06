@@ -1,6 +1,11 @@
 const crypto = require('crypto');
 const { fetchJsonInBrowser, fetchHtmlInBrowser } = require('../browser');
-const { postApiSync } = require('../db');
+const { postApiSync, fetchBacklog } = require('../db');
+
+/* 1回の実行で取り残しを何件ぶん追いかけるか。
+   多すぎると1回が長くなり、少なすぎると行列が減らない。 */
+const BACKLOG_LIMIT = 40;
+const DECK_BACKLOG_LIMIT = 60;
 const logger = require('../logger');
 
 async function fetchEventResults(eventId) {
@@ -95,24 +100,33 @@ async function runTournamentResultTask() {
   const feedUrl = 'https://players.pokemon-card.com/event_search?order=4&result_resist=1&per_page=25&offset=0&event_type%5B%5D=3%3A1&event_type%5B%5D=3%3A2&event_type%5B%5D=3%3A7';
   const { status, data } = await fetchJsonInBrowser(feedUrl);
 
-  if (status === 404 || !data || !data.event || data.event.length === 0) {
-    logger.info('No recent event results found in feed.');
-    return;
+  /* ⚠ フィードが空でも **ここで return しない**。
+     取り残し（結果公開が遅れた大会）は毎回追いかける必要がある。
+     以前はここで抜けていたので、フィードが空の回は何もしていなかった。 */
+  const events = (status === 404 || !data || !Array.isArray(data.event)) ? [] : data.event;
+  if (events.length === 0) {
+    logger.info('No recent event results in feed — going straight to the backlog.');
+  } else {
+    logger.info(`Fetched ${events.length} recent result events from feed.`);
   }
-
-  const events = data.event;
-  logger.info(`Fetched ${events.length} recent result events from feed.`);
 
   const deckIdSet = new Set();
   const allPlayersToSave = [];
+  const triedEventIds = new Set();
 
-  for (const event of events) {
+  /**
+   * 1つの大会の結果を取りに行って、保存用の配列に積む。
+   * まだ結果ページが無ければ何も積まない（次回また来る）。
+   * @returns true = 取れた / false = まだ取れない
+   */
+  async function collectEvent(event) {
     const eventHoldingId = event.event_holding_id;
-    if (!eventHoldingId) continue;
+    if (!eventHoldingId || triedEventIds.has(String(eventHoldingId))) return false;
+    triedEventIds.add(String(eventHoldingId));
 
     try {
       const res = await fetchEventResults(eventHoldingId);
-      if (res.status === 'not_published' || !res.results || res.results.length === 0) continue;
+      if (res.status === 'not_published' || !res.results || res.results.length === 0) return false;
 
       for (const p of res.results) {
         allPlayersToSave.push({
@@ -132,9 +146,46 @@ async function runTournamentResultTask() {
           deckIdSet.add(String(p.deck_id).trim());
         }
       }
+      return true;
     } catch (err) {
       logger.error(`Error fetching result for event ${eventHoldingId}:`, err.message);
+      return false;
     }
+  }
+
+  for (const event of events) {
+    await collectEvent(event);
+  }
+
+  /* ── 取り残しを取りに行く（2026-08-07 追加） ────────────────────
+     大会の結果ページは **開催日より後のどこか**で、店舗が登録して初めて生成される。
+     上のフィードは「結果が公開済みの最新25件」しか返さないので、
+     そのとき未公開だった大会は **二度と取りに行かれなかった**。
+     → DB 側に「終わったのに1人も取れていない大会」を聞いて、毎回それも回す。
+     ⚠ 受け口は **古い順** に返す（新しいものはフィードで拾えるため）。
+     ⚠ ここで失敗しても本体は止めない。次の回にまた来ればよい。 */
+  const backlog = await fetchBacklog('result_backlog', { limit: BACKLOG_LIMIT });
+  if (backlog && Array.isArray(backlog.events) && backlog.events.length > 0) {
+    logger.info(`Backlog: ${backlog.total} events still missing results — retrying ${backlog.events.length} (oldest first).`);
+    let got = 0;
+    for (const e of backlog.events) {
+      if (await collectEvent(e)) got++;
+    }
+    logger.info(`Backlog: newly obtained ${got} / ${backlog.events.length}.`);
+  } else if (backlog) {
+    logger.info('Backlog: none — every finished event already has results.');
+  }
+
+  /* デッキの取り残しも同じ経路に流す（2026-08-07 追加）。
+     これまでは **その回に取れた選手のデッキ**しか見ていなかったので、
+     前に保存済みの選手のデッキが欠けていても、二度と取りに行かなかった。 */
+  const deckBacklog = await fetchBacklog('deck_backlog', { limit: DECK_BACKLOG_LIMIT });
+  if (deckBacklog && Array.isArray(deckBacklog.deck_ids) && deckBacklog.deck_ids.length > 0) {
+    const before = deckIdSet.size;
+    for (const id of deckBacklog.deck_ids) {
+      if (id && String(id).trim()) deckIdSet.add(String(id).trim());
+    }
+    logger.info(`Deck backlog: ${deckBacklog.total} missing — added ${deckIdSet.size - before} to this run.`);
   }
 
   // Parse deck details

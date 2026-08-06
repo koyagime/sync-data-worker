@@ -1,5 +1,13 @@
 name: Tournament Info Monitor
 
+# ⚠ 同じワークフローを **重ねて走らせない**。
+#    state/ を毎回 main に push するので、5分毎の起動とスケジュールが重なると
+#    `! [rejected] (fetch first)` で落ちる（実測 失敗の5%がこれ）。
+#    cancel-in-progress: false = 走っている方は最後までやらせて、次を待たせる。
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 on:
   schedule:
     # Run every 5 minutes (GitHub Actions minimum cron interval)
@@ -42,8 +50,8 @@ jobs:
 
       - name: Run Tournament Info Task
         env:
-          API_SYNC_URL: ${{ secrets.API_SYNC_URL || 'https://jumbo.boo.jp/t/api_sync.php' }}
-          API_KEY: ${{ secrets.API_KEY || 'pokemimi_secret_api_key_2026_x89a' }}
+          API_SYNC_URL: ${{ secrets.API_SYNC_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
           DISCORD_CITY_WEBHOOK: ${{ secrets.DISCORD_CITY_WEBHOOK }}
           DISCORD_OTHER_WEBHOOK: ${{ secrets.DISCORD_OTHER_WEBHOOK }}
           DISCORD_WEBHOOK_KANTO: ${{ secrets.DISCORD_WEBHOOK_KANTO }}
@@ -62,4 +70,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add state/
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update tournament info state tracking [skip ci]" && git push)
+          git diff --quiet && git diff --staged --quiet && echo "state に変化なし" && exit 0
+          git commit -m "Auto-update tournament info state tracking [skip ci]"
+          # ⚠ 別の実行が先に push していることがある。取り込んでからやり直す。
+          for i in 1 2 3 4 5; do
+            git push && exit 0
+            echo "push が弾かれた（$i 回目）。取り込んで再試行する"
+            git pull --rebase --autostash origin "${{ github.ref_name }}" || exit 1
+            sleep $((i * 3))
+          done
+          echo "5回試しても push できなかった" >&2; exit 1
