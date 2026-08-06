@@ -15,7 +15,7 @@ const CATEGORIES = {
     event_attr_id: 3,
     event_type: 2,
     params: { 'event_type[]': '3:2', order: '1' },
-    headerMessage: '🔔 シティリーグの募集が開始/空き枠が発生しました！',
+    headerMessage: '🔔 **【シティリーグ】の募集が開始/空き枠が発生しました！**',
     webhookEnv: 'DISCORD_CITY_WEBHOOK'
   },
   other_events: {
@@ -23,7 +23,7 @@ const CATEGORIES = {
     event_attr_id: 3,
     event_type: 7,
     params: { 'event_type[]': '3:7', order: '1' },
-    headerMessage: '🔔 その他大会の募集が開始/空き枠が発生しました！',
+    headerMessage: '🔔 **【その他大会】の募集が開始/空き枠が発生しました！**',
     webhookEnv: 'DISCORD_OTHER_WEBHOOK'
   }
 };
@@ -98,15 +98,18 @@ async function runTournamentInfoTask() {
   logger.info('--- Starting Tournament Info Task ---');
   const state = loadState();
   const nowSec = Math.floor(Date.now() / 1000);
+  const forceNotify = process.env.FORCE_NOTIFY === 'true';
 
   for (const [catKey, cat] of Object.entries(CATEGORIES)) {
     try {
       const catState = state[catKey] || {};
       const lastSuccess = catState.last_success || 0;
-      const shouldStaySilent = (lastSuccess === 0) || ((nowSec - lastSuccess) > RESUME_SILENT_AFTER_SECONDS);
+      const shouldStaySilent = !forceNotify && ((lastSuccess === 0) || ((nowSec - lastSuccess) > RESUME_SILENT_AFTER_SECONDS));
 
       if (shouldStaySilent) {
         logger.info(`Category [${cat.label}]: Silent recovery active.`);
+      } else if (forceNotify) {
+        logger.info(`Category [${cat.label}]: FORCE_NOTIFY active. Dispatching all active events to regional Discord channels.`);
       }
 
       logger.info(`Category [${cat.label}]: Fetching active events...`);
@@ -129,14 +132,14 @@ async function runTournamentInfoTask() {
 
       // Discord notification logic
       const previousKnownSet = new Set(catState.known_ids || []);
-      const newlyActive = activeEvents.filter(e => !previousKnownSet.has(`${e.id}:${e.date_id}`));
+      const newlyActive = forceNotify ? activeEvents : activeEvents.filter(e => !previousKnownSet.has(`${e.id}:${e.date_id}`));
 
       const webhookUrl = process.env[cat.webhookEnv];
       if (newlyActive.length > 0) {
         if (shouldStaySilent) {
           logger.info(`Category [${cat.label}]: Muted ${newlyActive.length} notifications due to silent recovery mode.`);
         } else {
-          logger.info(`Category [${cat.label}]: Found ${newlyActive.length} newly active events. Sending notifications...`);
+          logger.info(`Category [${cat.label}]: Found ${newlyActive.length} newly active events. Sending notifications to regional Webhooks...`);
           await sendEventNotifications(webhookUrl, cat.label, cat.headerMessage, newlyActive);
         }
       }
