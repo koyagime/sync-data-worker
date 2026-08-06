@@ -1,13 +1,5 @@
 name: Tournament Info Monitor
 
-# ⚠ 同じワークフローを **重ねて走らせない**。
-#    state/ を毎回 main に push するので、5分毎の起動とスケジュールが重なると
-#    `! [rejected] (fetch first)` で落ちる（実測 失敗の5%がこれ）。
-#    cancel-in-progress: false = 走っている方は最後までやらせて、次を待たせる。
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: false
-
 on:
   schedule:
     # Run every 5 minutes (GitHub Actions minimum cron interval)
