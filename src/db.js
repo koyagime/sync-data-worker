@@ -39,20 +39,41 @@ async function postApiSync(action, payload) {
     throw new Error('API_SYNC_URL / API_KEY が設定されていません（GitHub Actions の Secrets を確認）');
   }
 
-  try {
-    const res = await axios.post(syncUrl, { action, api_key: apiKey, ...payload }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': apiKey
-      },
-      timeout: 60000
-    });
+  /* ⚠ 1回のタイムアウトで **その実行ぶんが丸ごと無駄になる**（2026-08-07 実測）。
+     デッキ222件を取り終わったあとの保存で落ちると、取得の労力が全部消える。
+     通信の失敗は起きるものとして、**短く待って数回やり直す**。
+     ⚠ やり直すのは「通信の失敗」と「サーバ側の一時的な失敗(5xx)」だけ。
+        403(鍵ちがい) / 400(送り方ちがい) は何度やっても同じなので即あきらめる。 */
+  const ATTEMPTS = 3;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    try {
+      const res = await axios.post(syncUrl, { action, api_key: apiKey, ...payload }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': apiKey
+        },
+        timeout: 60000
+      });
 
-    if (res.data && res.data.status === 'ok') {
-      return res.data;
+      if (res.data && res.data.status === 'ok') {
+        if (attempt > 1) logger.info(`API Sync (${action}): ${attempt} 回目で成功`);
+        return res.data;
+      }
+      throw new Error(`API Sync returned status error: ${JSON.stringify(res.data)}`);
+    } catch (err) {
+      lastErr = err;
+      const st = err.response && err.response.status;
+      const retriable = st === undefined || st >= 500;   /* 返事が来ない or サーバ側の失敗 */
+      if (!retriable || attempt === ATTEMPTS) break;
+      const waitMs = attempt * 4000;
+      logger.error(`API Sync failed (${action}) ${attempt}/${ATTEMPTS}: ${err.message} — ${waitMs / 1000}秒待って再試行`);
+      await new Promise((r) => setTimeout(r, waitMs));
     }
-    throw new Error(`API Sync returned status error: ${JSON.stringify(res.data)}`);
-  } catch (err) {
+  }
+
+  {
+    const err = lastErr;
     /* ⚠ 受け口は失敗の理由を **本文に入れて返す**。
        以前は err.message しか出しておらず「500」としか判らなかったため、
        原因（列名 rank が MySQL8 の予約語で構文エラー）の特定が丸一日遅れた。
