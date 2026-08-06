@@ -5,6 +5,8 @@ on:
     # Run every 5 minutes (GitHub Actions minimum cron interval)
     - cron: '*/5 * * * *'
   workflow_dispatch:
+  repository_dispatch:
+    types: [trigger-info]
 
 jobs:
   run-info:
