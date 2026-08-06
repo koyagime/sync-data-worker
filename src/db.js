@@ -28,12 +28,12 @@ async function postApiSync(action, payload) {
   const apiKey = process.env.API_KEY || 'pokemimi_secret_api_key_2026_x89a';
 
   try {
-    const res = await axios.post(syncUrl, { action, ...payload }, {
+    const res = await axios.post(syncUrl, { action, api_key: apiKey, ...payload }, {
       headers: {
         'Content-Type': 'application/json',
         'X-Api-Key': apiKey
       },
-      timeout: 30000
+      timeout: 60000
     });
 
     if (res.data && res.data.status === 'ok') {
