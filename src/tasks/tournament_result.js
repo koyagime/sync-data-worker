@@ -128,10 +128,19 @@ async function runTournamentResultTask() {
       const res = await fetchEventResults(eventHoldingId);
       if (res.status === 'not_published' || !res.results || res.results.length === 0) return false;
 
+      /* ⚠ tournament_player.shop_id は **NOT NULL**。null を送ると
+         「Column 'shop_id' cannot be null」で **そのバッチが丸ごと 500**（2026-08-07 実測）。
+         動いている旧世代の取り込み（tournament_result_import.php:1159）と同じ順で解決する:
+           フィード/バックログの shop_id → 結果詳細の shopId(キャメル) → 0
+         ⚠ 0 は「不明」の印。null にしない。 */
+      const shopId = Number(
+        event.shop_id ?? event.shopId ?? res.event?.shop_id ?? res.event?.shopId ?? 0
+      ) || 0;
+
       for (const p of res.results) {
         allPlayersToSave.push({
           event_holding_id: eventHoldingId,
-          shop_id: event.shop_id || null,
+          shop_id: shopId,
           player_id: p.player_id,
           name: p.name || '',
           rank: p.rank || 0,
