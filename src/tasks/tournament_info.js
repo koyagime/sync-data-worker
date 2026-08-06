@@ -1,13 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const { fetchJsonInBrowser } = require('../browser');
-const { getPool } = require('../db');
+const { postApiSync, getPool } = require('../db');
 const { sendEventNotifications } = require('../discord');
 const logger = require('../logger');
 
 const STATE_FILE = path.join(__dirname, '../../state/tournament_info_state.json');
-const RESUME_SILENT_AFTER_SECONDS = parseInt(process.env.RESUME_SILENT_AFTER_SECONDS || '7200', 10); // 2 hours
-const INACTIVE_FETCH_INTERVAL = 28800; // 8 hours
+const RESUME_SILENT_AFTER_SECONDS = parseInt(process.env.RESUME_SILENT_AFTER_SECONDS || '7200', 10);
+const INACTIVE_FETCH_INTERVAL = 28800;
 
 const CATEGORIES = {
   city_league: {
@@ -69,19 +69,6 @@ async function fetchCategoryEvents(catConfig, accepting) {
   return allEvents;
 }
 
-async function fetchPreviouslyActiveEvents(pool, event_attr_id, event_type) {
-  const [rows] = await pool.query(
-    `SELECT id, date_id, active_flag FROM tournament_info WHERE event_attr_id = ? AND event_type = ?`,
-    [event_attr_id, event_type]
-  );
-  const activeMap = new Map();
-  for (const row of rows) {
-    const key = `${row.id}:${row.date_id}`;
-    activeMap.set(key, Boolean(row.active_flag));
-  }
-  return activeMap;
-}
-
 function formatSqlDate(val) {
   if (!val) return null;
   const s = String(val).trim();
@@ -91,100 +78,24 @@ function formatSqlDate(val) {
   return s;
 }
 
-async function saveEventsToDb(pool, events, isActive) {
+async function saveEventsToDb(events, isActive) {
   if (!events || events.length === 0) return;
 
-  const sql = `
-    INSERT INTO tournament_info (
-      id, date_id, shop_id, event_date_params, event_date, event_date_week,
-      event_started_at, event_ended_at, prefecture_name, deck_count, zip_code, address,
-      venue, event_title, event_holding_id, event_type, csp_flg, event_league,
-      regulation, entry_fee, capacity, shop_name, shop_term, league_name,
-      event_attr_id, trainers_flg, discontinuance_flg, full_occupied_flg, cancel_flg,
-      entry_restart_flg, recruit_flg, beginner_shop_flg, strong_shop_flg,
-      champion_shop_flg, no_of_my_gym_reg, entry_status, entry_status_code, active_flag
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?, ?, ?
-    )
-    ON DUPLICATE KEY UPDATE
-      shop_id = VALUES(shop_id), event_date_params = VALUES(event_date_params),
-      event_date = VALUES(event_date), event_date_week = VALUES(event_date_week),
-      event_started_at = VALUES(event_started_at), event_ended_at = VALUES(event_ended_at),
-      prefecture_name = VALUES(prefecture_name), deck_count = VALUES(deck_count),
-      zip_code = VALUES(zip_code), address = VALUES(address), venue = VALUES(venue),
-      event_title = VALUES(event_title), event_holding_id = VALUES(event_holding_id),
-      event_type = VALUES(event_type), csp_flg = VALUES(csp_flg), event_league = VALUES(event_league),
-      regulation = VALUES(regulation), entry_fee = VALUES(entry_fee), capacity = VALUES(capacity),
-      shop_name = VALUES(shop_name), shop_term = VALUES(shop_term), league_name = VALUES(league_name),
-      event_attr_id = VALUES(event_attr_id), trainers_flg = VALUES(trainers_flg),
-      discontinuance_flg = VALUES(discontinuance_flg), full_occupied_flg = VALUES(full_occupied_flg),
-      cancel_flg = VALUES(cancel_flg), entry_restart_flg = VALUES(entry_restart_flg),
-      recruit_flg = VALUES(recruit_flg), beginner_shop_flg = VALUES(beginner_shop_flg),
-      strong_shop_flg = VALUES(strong_shop_flg), champion_shop_flg = VALUES(champion_shop_flg),
-      no_of_my_gym_reg = VALUES(no_of_my_gym_reg), entry_status = VALUES(entry_status),
-      entry_status_code = VALUES(entry_status_code), active_flag = VALUES(active_flag),
-      updated_at = CURRENT_TIMESTAMP
-  `;
+  const formattedEvents = events.map(e => ({
+    ...e,
+    event_date_params: formatSqlDate(e.event_date_params)
+  }));
 
-  for (const e of events) {
-    const params = [
-      e.id,
-      e.date_id || null,
-      e.shop_id || null,
-      formatSqlDate(e.event_date_params),
-      e.event_date || null,
-      e.event_date_week || null,
-      e.event_started_at || null,
-      e.event_ended_at || null,
-      e.prefecture_name || null,
-      e.deck_count || null,
-      e.zip_code || null,
-      e.address || null,
-      e.venue || null,
-      e.event_title || null,
-      e.event_holding_id || null,
-      e.event_type || null,
-      e.csp_flg || null,
-      e.event_league || null,
-      e.regulation || null,
-      e.entry_fee || null,
-      e.capacity || null,
-      e.shop_name || null,
-      e.shop_term || null,
-      e.leagueName || null,
-      e.event_attr_id || null,
-      e.trainers_flg || null,
-      e.discontinuance_flg || null,
-      e.fullOccupiedFlg || null,
-      e.cancelFlg || null,
-      e.entryRestartFlg || null,
-      e.recruitFlg || null,
-      e.beginnerShopFlg || null,
-      e.strongShopFlg || null,
-      e.championShopFlg || null,
-      e.noOfMyGymReg || null,
-      e.entryStatus || null,
-      e.entryStatusCode || null,
-      isActive ? 1 : 0
-    ];
-
-    try {
-      await pool.query(sql, params);
-    } catch (err) {
-      logger.error(`DB Save Error for event ${e.id}:${e.date_id}:`, err.message);
-    }
+  if (process.env.USE_DIRECT_DB === 'true') {
+    const pool = getPool();
+    // Direct DB save implementation if needed
+  } else {
+    await postApiSync('info', { events: formattedEvents, is_active: isActive });
   }
 }
 
 async function runTournamentInfoTask() {
   logger.info('--- Starting Tournament Info Task ---');
-  const pool = getPool();
   const state = loadState();
   const nowSec = Math.floor(Date.now() / 1000);
 
@@ -195,56 +106,42 @@ async function runTournamentInfoTask() {
       const shouldStaySilent = (lastSuccess === 0) || ((nowSec - lastSuccess) > RESUME_SILENT_AFTER_SECONDS);
 
       if (shouldStaySilent) {
-        logger.info(`Category [${cat.label}]: Silent recovery active (last success: ${lastSuccess ? new Date(lastSuccess * 1000).toLocaleString() : 'never'}). Notifications will be muted for this run.`);
+        logger.info(`Category [${cat.label}]: Silent recovery active.`);
       }
 
-      // 1. Fetch accepting=true events
       logger.info(`Category [${cat.label}]: Fetching active events...`);
       const activeEvents = await fetchCategoryEvents(cat, 'true');
       logger.info(`Category [${cat.label}]: Fetched ${activeEvents.length} active events.`);
 
-      // 2. Fetch inactive events if 8h elapsed
       const lastInactiveFetch = catState.last_inactive_fetch || 0;
       let inactiveEvents = [];
       if ((nowSec - lastInactiveFetch) >= INACTIVE_FETCH_INTERVAL) {
         logger.info(`Category [${cat.label}]: Fetching inactive events (8h elapsed)...`);
         inactiveEvents = await fetchCategoryEvents(cat, 'false');
         catState.last_inactive_fetch = nowSec;
-        logger.info(`Category [${cat.label}]: Fetched ${inactiveEvents.length} inactive events.`);
       }
 
-      // 3. Diff check against DB
-      const dbActiveMap = await fetchPreviouslyActiveEvents(pool, cat.event_attr_id, cat.event_type);
-      const newlyActive = [];
-
-      for (const e of activeEvents) {
-        const key = `${e.id}:${e.date_id}`;
-        const wasActiveInDb = dbActiveMap.get(key);
-        if (wasActiveInDb !== true) {
-          newlyActive.push(e);
-        }
-      }
-
-      // 4. Save to DB
-      await saveEventsToDb(pool, activeEvents, true);
+      // Save to DB via PHP bridge
+      await saveEventsToDb(activeEvents, true);
       if (inactiveEvents.length > 0) {
-        await saveEventsToDb(pool, inactiveEvents, false);
+        await saveEventsToDb(inactiveEvents, false);
       }
 
-      // 5. Send Discord Notifications
+      // Discord notification logic
+      const previousKnownSet = new Set(catState.known_ids || []);
+      const newlyActive = activeEvents.filter(e => !previousKnownSet.has(`${e.id}:${e.date_id}`));
+
       const webhookUrl = process.env[cat.webhookEnv];
       if (newlyActive.length > 0) {
         if (shouldStaySilent) {
           logger.info(`Category [${cat.label}]: Muted ${newlyActive.length} notifications due to silent recovery mode.`);
         } else {
-          logger.info(`Category [${cat.label}]: Found ${newlyActive.length} newly active/reopened events. Sending notifications...`);
+          logger.info(`Category [${cat.label}]: Found ${newlyActive.length} newly active events. Sending notifications...`);
           await sendEventNotifications(webhookUrl, cat.label, cat.headerMessage, newlyActive);
         }
-      } else {
-        logger.info(`Category [${cat.label}]: No new/reopened events detected.`);
       }
 
-      // Update state
+      catState.known_ids = activeEvents.map(e => `${e.id}:${e.date_id}`);
       catState.last_success = nowSec;
       state[catKey] = catState;
       saveState(state);

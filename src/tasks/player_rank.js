@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { fetchJsonInBrowser } = require('../browser');
-const { getPool } = require('../db');
+const { postApiSync } = require('../db');
 const logger = require('../logger');
 
 const STATE_FILE = path.join(__dirname, '../../state/player_rank_state.json');
@@ -35,97 +35,8 @@ function saveState(state) {
   }
 }
 
-async function syncLeaguePlayers(pool, league, players) {
-  if (!players || players.length === 0) return { processed: 0, newCount: 0, updatedCount: 0 };
-
-  const [existingRows] = await pool.query(
-    `SELECT player_id, nickname, current_league_id, current_ranking, prefecture_id, champion_ship_point, public_flg, champion_flg, avatar_image, is_listed FROM tournament_player_rank WHERE league = ?`,
-    [league]
-  );
-  const existingMap = new Map();
-  for (const r of existingRows) {
-    existingMap.set(String(r.player_id), r);
-  }
-
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-  let processed = 0;
-  let newCount = 0;
-  let updatedCount = 0;
-
-  const sql = `
-    INSERT INTO tournament_player_rank (
-      id, league, player_id, nickname, current_league_id, current_ranking,
-      previous_ranking, prefecture_id, champion_ship_point, public_flg,
-      champion_flg, avatar_image, is_listed, last_rank_change_at
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, 1, ?
-    )
-    ON DUPLICATE KEY UPDATE
-      id = VALUES(id),
-      nickname = VALUES(nickname),
-      current_league_id = VALUES(current_league_id),
-      previous_ranking = VALUES(previous_ranking),
-      current_ranking = VALUES(current_ranking),
-      prefecture_id = VALUES(prefecture_id),
-      champion_ship_point = VALUES(champion_ship_point),
-      public_flg = VALUES(public_flg),
-      champion_flg = VALUES(champion_flg),
-      avatar_image = VALUES(avatar_image),
-      is_listed = 1,
-      last_rank_change_at = CASE
-        WHEN current_ranking IS NULL OR current_ranking <> VALUES(current_ranking)
-          THEN VALUES(last_rank_change_at)
-        ELSE last_rank_change_at
-      END,
-      updated_at = NOW()
-  `;
-
-  for (const p of players) {
-    const playerId = p.playerId ? String(p.playerId) : '';
-    const ranking = p.currentRanking !== undefined ? parseInt(p.currentRanking, 10) : null;
-    if (!playerId || ranking === null) continue;
-
-    processed++;
-    const existing = existingMap.get(playerId);
-    const prevRanking = existing ? existing.current_ranking : null;
-
-    if (existing) {
-      updatedCount++;
-    } else {
-      newCount++;
-    }
-
-    const params = [
-      p.id || 0,
-      league,
-      playerId,
-      p.nickname || '',
-      p.currentLeagueId || null,
-      ranking,
-      prevRanking,
-      p.prefectureId || null,
-      p.championShipPoint || null,
-      p.publicFlg || null,
-      p.championFlg || null,
-      p.avatarImage || null,
-      now
-    ];
-
-    try {
-      await pool.query(sql, params);
-    } catch (err) {
-      logger.error(`Error saving player rank (${playerId}):`, err.message);
-    }
-  }
-
-  return { processed, newCount, updatedCount };
-}
-
 async function runPlayerRankTask() {
   logger.info('--- Starting Player Rank Import Task ---');
-  const pool = getPool();
   const state = loadState();
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
@@ -168,15 +79,16 @@ async function runPlayerRankTask() {
         }
       }
 
-      const syncResult = await syncLeaguePlayers(pool, league, allPlayers);
+      // Sync via PHP bridge
+      const syncResult = await postApiSync('rank', {
+        league,
+        players: allPlayers,
+        is_end: reachedEnd,
+        cycle_started_at: cycleStartedAt
+      });
 
       if (reachedEnd) {
-        // Finalize unlisted players for this cycle
-        const [res] = await pool.query(
-          `UPDATE tournament_player_rank SET is_listed = 0 WHERE league = ? AND updated_at < ? AND is_listed = 1`,
-          [league, cycleStartedAt]
-        );
-        logger.info(`${label} (${league}) cycle completed. Processed: ${syncResult.processed}, Dropped/Unlisted: ${res.affectedRows}.`);
+        logger.info(`${label} (${league}) cycle completed. Processed: ${syncResult.affected || 0}, Dropped: ${syncResult.dropped || 0}.`);
         state[league] = {
           offset: 0,
           cycle_started_at: null,

@@ -1,3 +1,4 @@
+const axios = require('axios');
 const mysql = require('mysql2/promise');
 const logger = require('./logger');
 
@@ -17,14 +18,32 @@ function getPool() {
       timezone: '+09:00',
       dateStrings: true
     };
-
-    if (!config.user || !config.password || !config.database) {
-      logger.warn('DB credentials not fully set in env. Please check .env file.');
-    }
-
     pool = mysql.createPool(config);
   }
   return pool;
+}
+
+async function postApiSync(action, payload) {
+  const syncUrl = process.env.API_SYNC_URL || 'https://tcg-shop.jp/database/t/api_sync.php';
+  const apiKey = process.env.API_KEY || 'pokemimi_secret_api_key_2026_x89a';
+
+  try {
+    const res = await axios.post(syncUrl, { action, ...payload }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': apiKey
+      },
+      timeout: 30000
+    });
+
+    if (res.data && res.data.status === 'ok') {
+      return res.data;
+    }
+    throw new Error(`API Sync returned status error: ${JSON.stringify(res.data)}`);
+  } catch (err) {
+    logger.error(`API Sync failed (${action}):`, err.message);
+    throw err;
+  }
 }
 
 async function closePool() {
@@ -36,5 +55,6 @@ async function closePool() {
 
 module.exports = {
   getPool,
+  postApiSync,
   closePool
 };

@@ -1,34 +1,7 @@
 const crypto = require('crypto');
 const { fetchJsonInBrowser, fetchHtmlInBrowser } = require('../browser');
-const { getPool } = require('../db');
+const { postApiSync } = require('../db');
 const logger = require('../logger');
-
-async function fetchPendingEventsFromInfo(pool) {
-  const sql = `
-    SELECT
-      ti.event_holding_id,
-      ti.event_date_params,
-      ti.shop_id,
-      ti.event_title
-    FROM tournament_info ti
-    WHERE ti.event_holding_id IS NOT NULL
-      AND ti.event_holding_id <> 0
-      AND ti.event_attr_id = 3
-      AND ti.event_type = 2
-      AND ti.event_date_params <= CURDATE()
-      AND NOT EXISTS (
-        SELECT 1 FROM tournament_player tp WHERE tp.event_holding_id = ti.event_holding_id
-      )
-    ORDER BY ti.event_date_params DESC, ti.updated_at DESC
-  `;
-  const [rows] = await pool.query(sql);
-  return rows.map(r => ({
-    event_holding_id: parseInt(r.event_holding_id, 10),
-    event_date_params: r.event_date_params,
-    shop_id: r.shop_id ? parseInt(r.shop_id, 10) : null,
-    event_title: r.event_title || ''
-  }));
-}
 
 async function fetchEventResults(eventId) {
   let offset = 0;
@@ -58,52 +31,6 @@ async function fetchEventResults(eventId) {
   }
 
   return { status: 'ok', event: eventMeta, results: allResults };
-}
-
-async function upsertPlayers(pool, eventId, shopId, eventDate, results) {
-  if (!results || results.length === 0) return 0;
-
-  const sql = `
-    INSERT INTO tournament_player (
-      event_holding_id, shop_id, player_id, name, rank, point, area, deck_id, show_profile, tournament_day
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-    )
-    ON DUPLICATE KEY UPDATE
-      shop_id = VALUES(shop_id),
-      name = VALUES(name),
-      rank = VALUES(rank),
-      point = VALUES(point),
-      area = VALUES(area),
-      deck_id = VALUES(deck_id),
-      show_profile = VALUES(show_profile),
-      tournament_day = VALUES(tournament_day),
-      updated_at = NOW()
-  `;
-
-  let count = 0;
-  for (const p of results) {
-    const deckId = p.deck_id ? String(p.deck_id).trim() : null;
-    const params = [
-      eventId,
-      shopId,
-      p.player_id,
-      p.name || '',
-      p.rank || 0,
-      p.point || 0,
-      p.area || null,
-      deckId || null,
-      p.show_profile || 0,
-      eventDate || null
-    ];
-    try {
-      await pool.query(sql, params);
-      count++;
-    } catch (err) {
-      logger.error(`Error upserting player ${p.player_id} for event ${eventId}:`, err.message);
-    }
-  }
-  return count;
 }
 
 function parseDeckHtml(html) {
@@ -161,73 +88,86 @@ function parseDeckHtml(html) {
   return { cards: cardsByCategory, total };
 }
 
-async function processDeck(pool, deckId) {
-  try {
-    const url = `https://www.pokemon-card.com/deck/confirm.html/deckID/${encodeURIComponent(deckId)}`;
-    const html = await fetchHtmlInBrowser(url);
-    const deckData = parseDeckHtml(html);
-
-    const cardsJson = JSON.stringify(deckData.cards);
-    const hash = crypto.createHash('sha256').update(cardsJson).digest('hex');
-
-    const sql = `
-      INSERT INTO tournament_decks (deck_id, cards_json, card_total, cards_hash)
-      VALUES (?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        cards_json = IF(cards_hash <> VALUES(cards_hash), VALUES(cards_json), cards_json),
-        card_total = IF(cards_hash <> VALUES(cards_hash), VALUES(card_total), card_total),
-        cards_hash = IF(cards_hash <> VALUES(cards_hash), VALUES(cards_hash), cards_hash),
-        updated_at = IF(cards_hash <> VALUES(cards_hash), CURRENT_TIMESTAMP, updated_at)
-    `;
-
-    await pool.query(sql, [deckId, cardsJson, deckData.total, hash]);
-    logger.info(`Deck [${deckId}] saved (${deckData.total} cards).`);
-  } catch (err) {
-    logger.error(`Error processing deck [${deckId}]:`, err.message);
-  }
-}
-
 async function runTournamentResultTask() {
   logger.info('--- Starting Tournament Result & Deck Import Task ---');
-  const pool = getPool();
 
-  const pendingEvents = await fetchPendingEventsFromInfo(pool);
-  logger.info(`Found ${pendingEvents.length} pending events to fetch results for.`);
+  // Fetch feed of recent events with results
+  const feedUrl = 'https://players.pokemon-card.com/event_search?order=4&result_resist=1&per_page=25&offset=0&event_type%5B%5D=3%3A1&event_type%5B%5D=3%3A2&event_type%5B%5D=3%3A7';
+  const { status, data } = await fetchJsonInBrowser(feedUrl);
+
+  if (status === 404 || !data || !data.event || data.event.length === 0) {
+    logger.info('No recent event results found in feed.');
+    return;
+  }
+
+  const events = data.event;
+  logger.info(`Fetched ${events.length} recent result events from feed.`);
 
   const deckIdSet = new Set();
+  const allPlayersToSave = [];
 
-  for (const event of pendingEvents) {
+  for (const event of events) {
+    const eventHoldingId = event.event_holding_id;
+    if (!eventHoldingId) continue;
+
     try {
-      logger.info(`Fetching result for event_holding_id=${event.event_holding_id} (${event.event_title})...`);
-      const { status, results } = await fetchEventResults(event.event_holding_id);
+      const res = await fetchEventResults(eventHoldingId);
+      if (res.status === 'not_published' || !res.results || res.results.length === 0) continue;
 
-      if (status === 'not_published' || !results || results.length === 0) {
-        logger.info(`Results for event ${event.event_holding_id} not published yet.`);
-        continue;
-      }
+      for (const p of res.results) {
+        allPlayersToSave.push({
+          event_holding_id: eventHoldingId,
+          shop_id: event.shop_id || null,
+          player_id: p.player_id,
+          name: p.name || '',
+          rank: p.rank || 0,
+          point: p.point || 0,
+          area: p.area || null,
+          deck_id: p.deck_id ? String(p.deck_id).trim() : null,
+          show_profile: p.show_profile || 0,
+          tournament_day: event.event_date_params || null
+        });
 
-      const count = await upsertPlayers(pool, event.event_holding_id, event.shop_id, event.event_date_params, results);
-      logger.info(`Saved ${count} players for event_holding_id=${event.event_holding_id}.`);
-
-      for (const p of results) {
         if (p.deck_id && String(p.deck_id).trim()) {
           deckIdSet.add(String(p.deck_id).trim());
         }
       }
-
     } catch (err) {
-      logger.error(`Error fetching result for event ${event.event_holding_id}:`, err.message);
+      logger.error(`Error fetching result for event ${eventHoldingId}:`, err.message);
     }
   }
 
-  // Process unique decks
+  // Parse deck details
+  const decksToSave = [];
   if (deckIdSet.size > 0) {
-    logger.info(`Processing ${deckIdSet.size} unique deck IDs...`);
+    logger.info(`Fetching details for ${deckIdSet.size} unique deck IDs...`);
     for (const deckId of deckIdSet) {
-      await processDeck(pool, deckId);
+      try {
+        const url = `https://www.pokemon-card.com/deck/confirm.html/deckID/${encodeURIComponent(deckId)}`;
+        const html = await fetchHtmlInBrowser(url);
+        const deckData = parseDeckHtml(html);
+        const cardsJson = JSON.stringify(deckData.cards);
+        const hash = crypto.createHash('sha256').update(cardsJson).digest('hex');
+
+        decksToSave.push({
+          deck_id: deckId,
+          cards_json: cardsJson,
+          card_total: deckData.total,
+          cards_hash: hash
+        });
+      } catch (e) {
+        logger.error(`Failed parsing deck [${deckId}]:`, e.message);
+      }
     }
   }
 
+  // Post to PHP bridge
+  const saveResult = await postApiSync('result', {
+    players: allPlayersToSave,
+    decks: decksToSave
+  });
+
+  logger.info(`Saved ${saveResult.players_saved || 0} players and ${saveResult.decks_saved || 0} decks to DB.`);
   logger.info('--- Tournament Result & Deck Import Task Completed ---');
 }
 
