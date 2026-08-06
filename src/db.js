@@ -24,7 +24,7 @@ function getPool() {
 }
 
 async function postApiSync(action, payload) {
-  const syncUrl = process.env.API_SYNC_URL || 'https://tcg-shop.jp/t/api_sync.php';
+  const syncUrl = process.env.API_SYNC_URL || 'https://jumbo.boo.jp/t/api_sync.php';
   const apiKey = process.env.API_KEY || 'pokemimi_secret_api_key_2026_x89a';
 
   try {
