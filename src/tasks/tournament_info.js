@@ -86,11 +86,11 @@ async function saveEventsToDb(events, isActive) {
     event_date_params: formatSqlDate(e.event_date_params)
   }));
 
-  if (process.env.USE_DIRECT_DB === 'true') {
-    const pool = getPool();
-    // Direct DB save implementation if needed
-  } else {
-    await postApiSync('info', { events: formattedEvents, is_active: isActive });
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < formattedEvents.length; i += BATCH_SIZE) {
+    const batch = formattedEvents.slice(i, i + BATCH_SIZE);
+    logger.info(`Sending batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(formattedEvents.length / BATCH_SIZE)} (${batch.length} events)...`);
+    await postApiSync('info', { events: batch, is_active: isActive });
   }
 }
 
@@ -121,7 +121,7 @@ async function runTournamentInfoTask() {
         catState.last_inactive_fetch = nowSec;
       }
 
-      // Save to DB via PHP bridge
+      // Save to DB via PHP bridge in batches
       await saveEventsToDb(activeEvents, true);
       if (inactiveEvents.length > 0) {
         await saveEventsToDb(inactiveEvents, false);

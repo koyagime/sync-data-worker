@@ -79,13 +79,23 @@ async function runPlayerRankTask() {
         }
       }
 
-      // Sync via PHP bridge
-      const syncResult = await postApiSync('rank', {
-        league,
-        players: allPlayers,
-        is_end: reachedEnd,
-        cycle_started_at: cycleStartedAt
-      });
+      // Sync via PHP bridge in batches
+      const BATCH_SIZE = 100;
+      let syncResult = { affected: 0, dropped: 0 };
+      if (allPlayers.length > 0) {
+        for (let i = 0; i < allPlayers.length; i += BATCH_SIZE) {
+          const batch = allPlayers.slice(i, i + BATCH_SIZE);
+          const isLastBatch = (i + BATCH_SIZE >= allPlayers.length);
+          const res = await postApiSync('rank', {
+            league,
+            players: batch,
+            is_end: reachedEnd && isLastBatch,
+            cycle_started_at: cycleStartedAt
+          });
+          syncResult.affected += (res.affected || 0);
+          syncResult.dropped += (res.dropped || 0);
+        }
+      }
 
       if (reachedEnd) {
         logger.info(`${label} (${league}) cycle completed. Processed: ${syncResult.affected || 0}, Dropped: ${syncResult.dropped || 0}.`);

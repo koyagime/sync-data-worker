@@ -161,13 +161,26 @@ async function runTournamentResultTask() {
     }
   }
 
-  // Post to PHP bridge
-  const saveResult = await postApiSync('result', {
-    players: allPlayersToSave,
-    decks: decksToSave
-  });
+  // Post to PHP bridge in batches
+  const BATCH_SIZE = 100;
+  let totalPlayersSaved = 0;
+  let totalDecksSaved = 0;
 
-  logger.info(`Saved ${saveResult.players_saved || 0} players and ${saveResult.decks_saved || 0} decks to DB.`);
+  for (let i = 0; i < Math.max(allPlayersToSave.length, decksToSave.length); i += BATCH_SIZE) {
+    const playerBatch = allPlayersToSave.slice(i, i + BATCH_SIZE);
+    const deckBatch = decksToSave.slice(i, i + BATCH_SIZE);
+
+    if (playerBatch.length > 0 || deckBatch.length > 0) {
+      const res = await postApiSync('result', {
+        players: playerBatch,
+        decks: deckBatch
+      });
+      totalPlayersSaved += (res.players_saved || 0);
+      totalDecksSaved += (res.decks_saved || 0);
+    }
+  }
+
+  logger.info(`Saved ${totalPlayersSaved} players and ${totalDecksSaved} decks to DB.`);
   logger.info('--- Tournament Result & Deck Import Task Completed ---');
 }
 
