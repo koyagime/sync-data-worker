@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Tournament Info Task
         env:
-          API_SYNC_URL: ${{ secrets.API_SYNC_URL || 'https://tcg-shop.jp/database/t/api_sync.php' }}
+          API_SYNC_URL: ${{ secrets.API_SYNC_URL || 'https://tcg-shop.jp/t/api_sync.php' }}
           API_KEY: ${{ secrets.API_KEY || 'pokemimi_secret_api_key_2026_x89a' }}
           DISCORD_CITY_WEBHOOK: ${{ secrets.DISCORD_CITY_WEBHOOK }}
           DISCORD_OTHER_WEBHOOK: ${{ secrets.DISCORD_OTHER_WEBHOOK }}
