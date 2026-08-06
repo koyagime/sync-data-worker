@@ -1,7 +1,7 @@
 const axios = require('axios');
 const logger = require('./logger');
 
-const MAX_DISCORD_MSG_LEN = 1900;
+const MAX_EMBEDS_PER_MSG = 10;
 const MAX_RETRIES = 3;
 
 const REGION_MAP = {
@@ -69,13 +69,12 @@ function buildEventDetailUrl(event) {
 }
 
 /**
- * Formats a single tournament entry into readable text for Discord notification
+ * Builds a beautiful Discord Rich Embed card for a tournament event
  */
-function formatEventNotificationText(event) {
+function buildEventEmbed(event, categoryLabel) {
   const title = event.event_title || '（無題の大会）';
   const pref = event.prefecture_name || '';
   const league = event.leagueName || '';
-  const locationTag = [pref, league].filter(Boolean).join(' / ');
   const shop = event.shop_name || event.venue || '（会場未定）';
 
   let dateStr = event.event_date || '';
@@ -93,26 +92,38 @@ function formatEventNotificationText(event) {
   const metaLine = [entryStatus, cap, reg, deck, fee].filter(Boolean).join(' / ');
 
   const url = buildEventDetailUrl(event);
-  const urlLine = url ? `<${url}>` : '';
+  const isCityLeague = (categoryLabel && categoryLabel.includes('シティ')) || (event.event_type === 2);
 
-  return `📍 **【${locationTag || '全国'}】${shop}**\n🏆 大会名：${title}\n📅 日時：${fullDateTime}\nℹ️ 詳細：${metaLine}\n🔗 予約：${urlLine}\n`;
+  // Gold (#FFA500 = 16753920) for City League, DodgerBlue (#1E90FF = 2003199) for Other Events
+  const color = isCityLeague ? 16753920 : 2003199;
+  const icon = isCityLeague ? '🏆【シティリーグ】' : '⚔️【その他大会】';
+
+  return {
+    title: `${icon} ${shop} (${pref || '全国'})`,
+    url: url || undefined,
+    color,
+    fields: [
+      { name: '🏆 大会名', value: title, inline: false },
+      { name: '📍 都道府県 / リーグ', value: `${pref || '全国'} / ${league || '全般'}`, inline: true },
+      { name: '📅 開催日時', value: fullDateTime || '日時未定', inline: true },
+      { name: 'ℹ️ 募集詳細', value: metaLine || '詳細なし', inline: false }
+    ],
+    footer: {
+      text: 'ポケカ大会 募集・空き枠リアルタイム通知 | pokemimi.com'
+    }
+  };
 }
 
 /**
- * Posts payload to Discord Webhook with 429 Retry handling
+ * Posts payload object (content / embeds) to Discord Webhook with 429 Retry handling
  */
-async function postDiscordWebhook(webhookUrl, content) {
+async function postDiscordWebhook(webhookUrl, payloadObj) {
   const isDryRun = process.env.PM_NOTIFY_DRYRUN === 'true';
 
   if (isDryRun || !webhookUrl) {
-    logger.info(`[DRY-RUN / NO-WEBHOOK] Discord Payload:\n${content}`);
+    logger.info(`[DRY-RUN / NO-WEBHOOK] Discord Payload:\n${JSON.stringify(payloadObj, null, 2)}`);
     return true;
   }
-
-  const payload = {
-    content,
-    flags: 4 // SUPPRESS_EMBEDS (prevents duplicated automatic card previews)
-  };
 
   let attempt = 0;
   let delay = 1000;
@@ -120,7 +131,7 @@ async function postDiscordWebhook(webhookUrl, content) {
   while (attempt < MAX_RETRIES) {
     attempt++;
     try {
-      await axios.post(webhookUrl, payload, { timeout: 10000 });
+      await axios.post(webhookUrl, payloadObj, { timeout: 10000 });
       return true;
     } catch (err) {
       if (err.response && err.response.status === 429) {
@@ -141,7 +152,7 @@ async function postDiscordWebhook(webhookUrl, content) {
 }
 
 /**
- * Splits list of events into chunks under 1900 chars and posts to appropriate regional Discord Webhook
+ * Groups events by regional Discord Webhook and posts Rich Card Embeds
  */
 async function sendEventNotifications(defaultWebhookUrl, categoryLabel, headerMessage, events) {
   if (!events || events.length === 0) return;
@@ -158,38 +169,27 @@ async function sendEventNotifications(defaultWebhookUrl, categoryLabel, headerMe
   }
 
   for (const [targetUrl, regionEvents] of Object.entries(groupedByWebhook)) {
-    const chunks = [];
-    let currentChunk = headerMessage + '\n\n';
+    const embeds = regionEvents.map(e => buildEventEmbed(e, categoryLabel));
 
-    for (const event of regionEvents) {
-      const text = formatEventNotificationText(event);
+    // Send in batches of 10 embeds per Discord webhook call
+    for (let i = 0; i < embeds.length; i += MAX_EMBEDS_PER_MSG) {
+      const embedBatch = embeds.slice(i, i + MAX_EMBEDS_PER_MSG);
+      const isFirst = (i === 0);
+      const payloadObj = {
+        content: isFirst ? headerMessage : undefined,
+        embeds: embedBatch
+      };
 
-      if ((currentChunk.length + text.length) > MAX_DISCORD_MSG_LEN) {
-        chunks.push(currentChunk.trim());
-        currentChunk = headerMessage + '\n\n' + text;
-      } else {
-        currentChunk += text;
-      }
-    }
-
-    if (currentChunk.trim().length > 0) {
-      chunks.push(currentChunk.trim());
-    }
-
-    logger.info(`Sending ${regionEvents.length} notification entries for ${categoryLabel} to Webhook (${targetUrl.slice(0, 45)}...)...`);
-
-    for (let i = 0; i < chunks.length; i++) {
-      await postDiscordWebhook(targetUrl, chunks[i]);
-      if (i < chunks.length - 1) {
-        await new Promise(r => setTimeout(r, 1000));
-      }
+      logger.info(`Sending ${embedBatch.length} Rich Embed card(s) for ${categoryLabel} to Webhook (${targetUrl.slice(0, 45)}...)...`);
+      await postDiscordWebhook(targetUrl, payloadObj);
+      await new Promise(r => setTimeout(r, 1000));
     }
   }
 }
 
 module.exports = {
   buildEventDetailUrl,
-  formatEventNotificationText,
+  buildEventEmbed,
   sendEventNotifications,
   postDiscordWebhook
 };
