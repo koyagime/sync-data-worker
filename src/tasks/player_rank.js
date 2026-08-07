@@ -68,6 +68,23 @@ async function runPlayerRankTask() {
         }
 
         const players = data.result;
+
+        /* ⚠ 都道府県(prefectureId)が入らない行が出ている（2026-08-07）。
+           受け口は `prefectureId` を読む実装で、旧世代の取り込みと同じ項目名・同じURL。
+           つまり **API が返しているかどうか**を確かめないと切り分けられないが、
+           公式は Cloudflare で守られていて手元からは叩けない。ここが唯一の観測点。
+           → 1ページにつき1回だけ、有無と（無いときは）項目名一覧を残す。
+           ⚠ 毎行出すとログが埋まるので、**最初の1行だけ**。 */
+        if (players.length > 0) {
+          const p0 = players[0];
+          if (p0 && Object.prototype.hasOwnProperty.call(p0, 'prefectureId')) {
+            const filled = players.filter((x) => x && x.prefectureId !== null && x.prefectureId !== undefined).length;
+            logger.info(`[prefecture] ${label}(${league}) p${pageNo}: prefectureId あり — ${filled}/${players.length} 件に値が入っている`);
+          } else {
+            logger.error(`[prefecture] ${label}(${league}) p${pageNo}: **prefectureId が返ってきていない**。実際の項目名: ${Object.keys(p0 || {}).join(', ')}`);
+          }
+        }
+
         allPlayers = allPlayers.concat(players);
         pagesFetched++;
         offset += players.length;
