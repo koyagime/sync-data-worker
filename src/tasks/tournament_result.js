@@ -5,7 +5,7 @@ const { postApiSync, fetchBacklog } = require('../db');
 /* 1回の実行で取り残しを何件ぶん追いかけるか。
    多すぎると1回が長くなり、少なすぎると行列が減らない。 */
 const BACKLOG_LIMIT = 40;
-const DECK_BACKLOG_LIMIT = 60;
+const DECK_BACKLOG_LIMIT = 120;
 const logger = require('../logger');
 
 async function fetchEventResults(eventId) {
@@ -67,8 +67,15 @@ function parseDeckHtml(html) {
   let total = 0;
 
   for (const [field, category] of Object.entries(categoryFields)) {
-    const fieldRegex = new RegExp(`name=["']${field}["']\\s+value=["'](.*?)["']`, 'i');
-    const match = html.match(fieldRegex);
+    /* ⚠ 2026-08-07 実バグ: `name="deck_pke"` の **直後に value= が来る前提**で書かれていて、
+       実物は `name="deck_pke" id="deck_pke" value="…"` と間に id が入るため
+       **一度も一致していなかった**。結果、222件のデッキが全部 `{}`(中身ゼロ)で保存されていた。
+       → **input タグごと取り出してから value を読む**。属性の順や増減に強い形にする。
+       （旧世代の取り込み tournament_deck_import.php:81 は DOM/XPath で取っていて、
+         そもそもこの問題が起きない書き方だった） */
+    const tag = html.match(new RegExp(`<input[^>]*name=["']${field}["'][^>]*>`, 'i'));
+    if (!tag) continue;
+    const match = tag[0].match(/value=["']([^"']*)["']/i);
     if (!match || !match[1]) continue;
 
     const tokens = match[1].split('-');
@@ -208,6 +215,14 @@ async function runTournamentResultTask() {
         const deckData = parseDeckHtml(html);
         const cardsJson = JSON.stringify(deckData.cards);
         const hash = crypto.createHash('sha256').update(cardsJson).digest('hex');
+
+        /* ⚠ 中身が取れなかったものを **保存しない**（2026-08-07）。
+           `{}` を書き込むと「行はある」ので取得済みに見え、二度と取り直されなかった。
+           取れなかったら黙って捨てず、ログに残して次回また取りに行かせる。 */
+        if (!deckData.total || deckData.total <= 0) {
+          logger.error(`Deck [${deckId}]: カードを1枚も読み取れなかったので保存しない（次回また取りに行く）`);
+          continue;
+        }
 
         decksToSave.push({
           deck_id: deckId,
