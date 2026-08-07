@@ -53,14 +53,37 @@ function parseDeckHtml(html) {
   const nameMap = {};
   const imgMap = {};
 
-  const nameMatches = [...html.matchAll(/PCGDECK\.searchItemName\[(\d+)\]\s*=\s*(["'])(.*?)\2/gs)];
+  /* ⚠ 元々の取り込み(tournament_result_import.php:552 decodeJsValue)と**同じ復元**にする。
+     ページの値は JS 文字列なのでエスケープが入り、さらに HTML 実体参照が混ざることがある。
+     `\\'` と `\\"` を戻すだけでは、`\\n` や `&amp;` がそのまま名前に残る＝**名前が静かに壊れる**。 */
+  const HTML_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' };
+  const decodeJsValue = (raw) => {
+    let s = String(raw);
+    /* ① JS のエスケープを解く。JSON として読めれば一番正確。読めなければ最低限だけ戻す。 */
+    try {
+      s = JSON.parse('"' + s.replace(/\\'/g, "'").replace(/(^|[^\\])"/g, '$1\\"') + '"');
+    } catch (e) {
+      s = s.replace(/\\(['"\\/])/g, '$1').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+    }
+    /* ② HTML 実体参照を戻す（数値参照も） */
+    return s.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (whole, body) => {
+      if (body[0] === '#') {
+        const code = body[1] === 'x' || body[1] === 'X'
+          ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+      }
+      return Object.prototype.hasOwnProperty.call(HTML_ENT, body) ? HTML_ENT[body] : whole;
+    });
+  };
+
+  const nameMatches = [...html.matchAll(/PCGDECK\.searchItemName\[(\d+)\]\s*=\s*(["'])((?:\\.|(?!\2).)*)\2/gs)];
   for (const m of nameMatches) {
-    nameMap[m[1]] = m[3].replace(/\\'/g, "'").replace(/\\"/g, '"');
+    nameMap[m[1]] = decodeJsValue(m[3]);
   }
 
-  const imgMatches = [...html.matchAll(/PCGDECK\.searchItemCardPict\[(\d+)\]\s*=\s*(["'])(.*?)\2/gs)];
+  const imgMatches = [...html.matchAll(/PCGDECK\.searchItemCardPict\[(\d+)\]\s*=\s*(["'])((?:\\.|(?!\2).)*)\2/gs)];
   for (const m of imgMatches) {
-    imgMap[m[1]] = m[3].replace(/\\'/g, "'").replace(/\\"/g, '"');
+    imgMap[m[1]] = decodeJsValue(m[3]);
   }
 
   const cardsByCategory = {};
