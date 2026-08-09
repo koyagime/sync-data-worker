@@ -233,6 +233,25 @@ async function runTournamentResultTask() {
     logger.info(`Deck backlog: ${deckBacklog.total} missing — added ${deckIdSet.size - before} to this run.`);
   }
 
+  /* すでに持っているデッキは公式サイトへ取りに行かない（2026-08-09）。
+     以前は毎回「直近20大会の全デッキ」約222件を取り直していた。起動を15分おきに
+     変えた直後、公式サイトへの取得が4倍（約888件/時）に膨れ、受け口の api_sync も
+     詰まって 60秒タイムアウトが連鎖し、19:00 と 19:15 の実行が丸ごと失敗した。
+     ⚠ 判定に失敗したら「全部取りに行く」に倒す（取りこぼすより重い方がまし）。 */
+  if (deckIdSet.size > 0) {
+    const known = await fetchBacklog('deck_missing', { deck_ids: Array.from(deckIdSet) });
+    if (known && Array.isArray(known.missing)) {
+      const before = deckIdSet.size;
+      const stillNeeded = new Set(known.missing.map(String));
+      for (const id of Array.from(deckIdSet)) {
+        if (!stillNeeded.has(id)) deckIdSet.delete(id);
+      }
+      logger.info(`Deck skip: ${before - deckIdSet.size} already stored — fetching ${deckIdSet.size}.`);
+    } else {
+      logger.warn('deck_missing check unavailable — fetching every deck (heavier, but nothing is lost).');
+    }
+  }
+
   // Parse deck details
   const decksToSave = [];
   if (deckIdSet.size > 0) {
