@@ -8,6 +8,49 @@ let globalBrowser = null;
 let globalContext = null;
 let globalPage = null;
 
+/**
+ * Cloudflare's JS challenge takes a variable amount of time to clear.
+ *
+ * The previous code waited a flat 3 seconds and then logged "session established"
+ * unconditionally -- so whenever the challenge ran long we carried on WITHOUT the
+ * clearance cookie and every later fetch died with HTTP 403. That killed the whole
+ * task (exit 1) in ~20% of runs on 2026-08-09.
+ *
+ * Wait until the interstitial actually goes away instead of guessing. Polling the
+ * title is free: it costs no extra requests to the origin.
+ */
+const CF_INTERSTITIAL = /just a moment|attention required|checking your browser|cloudflare/i;
+
+async function establishCloudflareSession(page) {
+  logger.info(`Navigating to ${BASE_URL} to pass Cloudflare challenge...`);
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    } catch (err) {
+      logger.warn(`Navigation warning (attempt ${attempt}/3): ${err.message}`);
+    }
+
+    for (let waited = 0; waited < 30000; waited += 2000) {
+      await page.waitForTimeout(2000);
+      let title = '';
+      try {
+        title = await page.title();
+      } catch (e) {
+        continue; // navigating -- look again on the next tick
+      }
+      if (title && !CF_INTERSTITIAL.test(title)) {
+        logger.info(`Cloudflare session established. Page title: "${title}"`);
+        return true;
+      }
+    }
+    logger.warn(`Cloudflare challenge still showing after 30s (attempt ${attempt}/3).`);
+  }
+
+  logger.warn('Proceeding without a confirmed Cloudflare session -- fetches may return 403.');
+  return false;
+}
+
 async function initBrowserSession() {
   if (globalPage && !globalPage.isClosed()) {
     return { browser: globalBrowser, context: globalContext, page: globalPage };
@@ -34,14 +77,7 @@ async function initBrowserSession() {
 
   globalPage = await globalContext.newPage();
 
-  logger.info(`Navigating to ${BASE_URL} to pass Cloudflare challenge...`);
-  try {
-    await globalPage.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await globalPage.waitForTimeout(3000); // Allow JS challenge execution
-    logger.info(`Cloudflare session established. Page title: "${await globalPage.title()}"`);
-  } catch (err) {
-    logger.warn(`Initial navigation warning: ${err.message}`);
-  }
+  await establishCloudflareSession(globalPage);
 
   return { browser: globalBrowser, context: globalContext, page: globalPage };
 }
@@ -49,10 +85,8 @@ async function initBrowserSession() {
 /**
  * Executes a fetch request inside the authenticated browser context to bypass Cloudflare 403.
  */
-async function fetchJsonInBrowser(url, options = {}) {
-  const { page } = await initBrowserSession();
-
-  const result = await page.evaluate(async ({ fetchUrl, fetchOptions }) => {
+async function evalJsonFetch(page, url, options) {
+  return page.evaluate(async ({ fetchUrl, fetchOptions }) => {
     try {
       const response = await fetch(fetchUrl, {
         method: fetchOptions.method || 'GET',
@@ -82,6 +116,21 @@ async function fetchJsonInBrowser(url, options = {}) {
       return { status: 0, error: err.message };
     }
   }, { fetchUrl: url, fetchOptions: options });
+}
+
+async function fetchJsonInBrowser(url, options = {}) {
+  const { page } = await initBrowserSession();
+
+  let result = await evalJsonFetch(page, url, options);
+
+  /* A 403 means the clearance cookie is missing or expired, not that the data is
+     gone. Re-run the challenge and try once more -- a single 403 used to abort the
+     entire run, losing every event it had not fetched yet. */
+  if (result.status === 403) {
+    logger.warn(`HTTP 403 from ${url} -- re-running the Cloudflare challenge, then retrying once.`);
+    await establishCloudflareSession(page);
+    result = await evalJsonFetch(page, url, options);
+  }
 
   if (result.status === 404) {
     return { status: 404, data: null };
@@ -97,10 +146,8 @@ async function fetchJsonInBrowser(url, options = {}) {
 /**
  * Fetches HTML content inside the authenticated browser context.
  */
-async function fetchHtmlInBrowser(url) {
-  const { page } = await initBrowserSession();
-
-  const result = await page.evaluate(async (targetUrl) => {
+async function evalHtmlFetch(page, url) {
+  return page.evaluate(async (targetUrl) => {
     try {
       const res = await fetch(targetUrl);
       if (!res.ok) return { status: res.status, html: null };
@@ -110,6 +157,18 @@ async function fetchHtmlInBrowser(url) {
       return { status: 0, error: e.message };
     }
   }, url);
+}
+
+async function fetchHtmlInBrowser(url) {
+  const { page } = await initBrowserSession();
+
+  let result = await evalHtmlFetch(page, url);
+
+  if (result.status === 403) {
+    logger.warn(`HTTP 403 from ${url} -- re-running the Cloudflare challenge, then retrying once.`);
+    await establishCloudflareSession(page);
+    result = await evalHtmlFetch(page, url);
+  }
 
   if (!result.html) {
     throw new Error(`HTML fetch failed (${url}): HTTP ${result.status}`);
