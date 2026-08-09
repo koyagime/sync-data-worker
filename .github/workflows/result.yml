@@ -5,6 +5,11 @@ on:
     # Run every hour at 10 minutes
     - cron: '10 * * * *'
   workflow_dispatch:
+  # 外部の cron サービス(cron-job.org)から叩いて起こすための口（2026-08-09 追加）。
+  # ⚠ GitHub の schedule は混雑時に遅延・スキップされ、実測で 1〜2時間半バラバラだった。
+  #    上の schedule は **外部サービスが止まったときの保険**として残す。
+  repository_dispatch:
+    types: [run-result]
 
 jobs:
   run-result:
