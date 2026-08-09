@@ -212,7 +212,13 @@ async function runTournamentResultTask() {
     }
     logger.info(`Backlog: newly obtained ${got} / ${backlog.events.length}.`);
   } else if (backlog) {
-    logger.info('Backlog: none — every finished event already has results.');
+    /* An empty page is NOT the same as an empty queue: entries that failed recently
+       are waiting out their retry backoff. Saying "every event already has results"
+       when `total` is 637 hides a growing pile behind a green log line. */
+    const waiting = Number(backlog && backlog.total) || 0;
+    logger.info(waiting > 0
+      ? `Backlog: ${waiting} events still queued, but none are due for a retry yet.`
+      : 'Backlog: none — every finished event already has results.');
   }
 
   /* デッキの取り残しも同じ経路に流す（2026-08-07 追加）。
