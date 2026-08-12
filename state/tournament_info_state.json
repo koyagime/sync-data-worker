@@ -2,11 +2,12 @@
   "city_league": {
     "last_inactive_fetch": 1786519254,
     "known_ids": [],
-    "last_success": 1786523760
+    "last_success": 1786524057
   },
   "other_events": {
     "last_inactive_fetch": 1786519254,
     "known_ids": [
+      "1189:1877202",
       "1189:1877194",
       "1189:1877520",
       "1189:1877197",
@@ -621,6 +622,6 @@
       "1207:1911231",
       "1207:1911076"
     ],
-    "last_success": 1786523760
+    "last_success": 1786524057
   }
 }
