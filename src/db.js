@@ -24,6 +24,31 @@ function getPool() {
 }
 
 /**
+ * この失敗は **次の回に自然に治るか**。
+ *
+ * 🚨 2026-08-14 ユーザー指示:「取得できない時もあるわけだから、エラーにならないようにしとけば？」
+ *    通信が一時的に詰まっただけで失敗メールが飛ぶと、**メールを見なくなる**。
+ *    そうなると、本当に壊れた日に気づけない。
+ *
+ * ⚠ ここは**再試行するか**と**メールを出すか**の両方が使う、唯一の判定。
+ *    2箇所に別々に書くと、いつか片方だけ直されて食い違う。
+ *
+ * ⚠ **「返事が来ない＝一時的」だけでは足りない。**
+ *    こちらのコードの不具合（TypeError 等）も「返事が来ていない」形をしているので、
+ *    素朴に書くと**不具合まで黙って警告に化ける**。
+ *    → **通信の失敗であることを先に確かめる**（axios の失敗にだけ code / isAxiosError が付く）。
+ *    実測 2026-08-14 (axios 1.19.0): タイムアウト = code:'ECONNABORTED', isAxiosError:true /
+ *                                    TypeError   = どちらも undefined
+ */
+function isTransient(err) {
+  if (!err || err.pmServerRejected) return false;     /* 受け口が「だめ」と答えた＝待っても直らない */
+  const isComm = err.isAxiosError === true || typeof err.code === 'string';
+  if (!isComm) return false;                          /* 通信の失敗ではない＝こちらの不具合。黙らせない */
+  const st = err.response && err.response.status;
+  return st === undefined || st >= 500;               /* 返事が来ない(タイムアウト等) or サーバ側の一時的失敗 */
+}
+
+/**
  * PHP の受け口へ送る。
  *
  * ⚠ 鍵とURLは **必ず環境変数から**。
@@ -60,11 +85,16 @@ async function postApiSync(action, payload) {
         if (attempt > 1) logger.info(`API Sync (${action}): ${attempt} 回目で成功`);
         return res.data;
       }
-      throw new Error(`API Sync returned status error: ${JSON.stringify(res.data)}`);
+      /* 受け口が 200 で「だめ」と答えた＝送り方かサーバ側の不具合。**待っても直らない**ので
+         やり直さず、あとで「メールを出す側」に回す。 */
+      {
+        const e = new Error(`API Sync returned status error: ${JSON.stringify(res.data)}`);
+        e.pmServerRejected = true;
+        throw e;
+      }
     } catch (err) {
       lastErr = err;
-      const st = err.response && err.response.status;
-      const retriable = st === undefined || st >= 500;   /* 返事が来ない or サーバ側の失敗 */
+      const retriable = isTransient(err);
       if (!retriable || attempt === ATTEMPTS) break;
       const waitMs = attempt * 4000;
       logger.error(`API Sync failed (${action}) ${attempt}/${ATTEMPTS}: ${err.message} — ${waitMs / 1000}秒待って再試行`);
@@ -81,6 +111,10 @@ async function postApiSync(action, payload) {
     const body = err.response && err.response.data;
     const detail = body ? ` / 受け口の返事: ${typeof body === 'string' ? body.slice(0, 400) : JSON.stringify(body).slice(0, 400)}` : '';
     logger.error(`API Sync failed (${action}): ${err.message}${detail}`);
+    /* 🚩 **次の回で自然に治るかどうか**を、ここで印として付けて渡す。
+       受け取るのは index.js（ここで「メールを出すか」を決める）。
+       ⚠ 判定は必ず isTransient() ひとつ。上の再試行と別々に書くと、いつか食い違う。 */
+    err.pmTransient = isTransient(err);
     throw err;
   }
 }
