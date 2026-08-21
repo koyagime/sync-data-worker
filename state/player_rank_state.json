@@ -1,20 +1,20 @@
 {
   "master": {
-    "offset": 1600,
-    "cycle_started_at": "2026-08-21 10:29:10",
-    "last_completed_at": "2026-08-21 07:41:22",
+    "offset": 0,
+    "cycle_started_at": null,
+    "last_completed_at": "2026-08-21 13:44:00",
     "last_cycle_total": 1800
   },
   "senior": {
     "offset": 0,
     "cycle_started_at": null,
-    "last_completed_at": "2026-08-21 12:43:33",
+    "last_completed_at": "2026-08-21 13:44:00",
     "last_cycle_total": 300
   },
   "junior": {
     "offset": 0,
     "cycle_started_at": null,
-    "last_completed_at": "2026-08-21 12:43:33",
+    "last_completed_at": "2026-08-21 13:44:00",
     "last_cycle_total": 200
   }
 }
