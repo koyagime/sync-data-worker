@@ -1,6 +1,6 @@
 {
   "city_league": {
-    "last_inactive_fetch": 1787991941,
+    "last_inactive_fetch": 1788020743,
     "known_ids": [
       "1246:1940753",
       "1246:1941349",
@@ -629,10 +629,10 @@
       "1246:1940605",
       "1246:1940596"
     ],
-    "last_success": 1788020452
+    "last_success": 1788020743
   },
   "other_events": {
-    "last_inactive_fetch": 1787991941,
+    "last_inactive_fetch": 1788020743,
     "known_ids": [
       "1189:1877878",
       "1189:1877687",
@@ -1328,6 +1328,6 @@
       "1208:1942202",
       "1208:1941990"
     ],
-    "last_success": 1788020452
+    "last_success": 1788020743
   }
 }
