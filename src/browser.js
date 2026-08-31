@@ -137,7 +137,19 @@ async function fetchJsonInBrowser(url, options = {}) {
   }
 
   if (result.error) {
-    throw new Error(`Fetch failed (${url}): ${result.error}`);
+    const err = new Error(`Fetch failed (${url}): ${result.error}`);
+    /* 🚩 **「今回は取れなかった」と「こちらが壊れた」を分ける**（2026-08-31）。
+       index.js には 2026-08-14 から「相手が 5xx ならメールを出さない」規則があるのに、
+       印(pmTransient)を付けていたのは **送り先(api_sync)だけ**だった。
+       取得元(公式サイト)の 5xx はただの Error として投げていたので、
+       **公式が落ちた9時間で失敗メールが38通**飛んだ（2026-08-31 00:00〜09:15 JST。
+       公式の応答は "ServerError | ポケモンカードゲーム プレイヤーズクラブ" / HTTP 500。
+       09:30 に公式が復旧して以降は自動で正常に戻り、取りこぼしも無かった）。
+       規則は1つ。**取得元にも同じ印を付ける**。
+       ⚠ 5xx と「返事が来ない(status 0)」だけ。403/404 や解析の失敗はこちらの問題なので黙らせない。 */
+    err.pmTransient = (result.status === 0 || result.status >= 500);
+    err.pmUpstreamStatus = result.status;
+    throw err;
   }
 
   return { status: result.status, data: result.data };

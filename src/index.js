@@ -43,8 +43,15 @@ async function main() {
      *   落とさない（警告だけ）  : 返事が来ない／タイムアウト／相手が 5xx
      */
     if (err && err.pmTransient) {
-      logger.warn(`今回は届きませんでした（次の回で拾い直します）: ${err.message}`);
-      console.log('::warning::今回は受け口に届きませんでした。未処理ぶんは次の回で拾い直します');
+      /* ⚠ 文言で **取得元(公式サイト)** と **送り先(受け口)** を分ける（2026-08-31）。
+         以前はどちらも「受け口に届きませんでした」と出していたので、
+         公式が落ちた回のログを見ても *こちらの受け口が悪い* ように読めた。
+         原因の取り違えは、次に同じことが起きたときの調査を丸ごと無駄にする。 */
+      const up = err.pmUpstreamStatus;
+      const where = up === undefined ? '受け口(こちらのサーバ)'
+        : `取得元(公式サイト) HTTP ${up === 0 ? '応答なし' : up}`;
+      logger.warn(`今回は取れませんでした（次の回で拾い直します） — ${where}: ${err.message}`);
+      console.log(`::warning::${where} が応答しませんでした。未処理ぶんは次の回で拾い直します（メールは出しません）`);
     } else {
       logger.error('Unhandled task error:', err.stack || err.message);
       process.exitCode = 1;
