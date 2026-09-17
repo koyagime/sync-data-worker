@@ -8,13 +8,13 @@
   "senior": {
     "offset": 0,
     "cycle_started_at": null,
-    "last_completed_at": "2026-09-17 20:00:54",
+    "last_completed_at": "2026-09-17 16:18:25",
     "last_cycle_total": 40
   },
   "junior": {
     "offset": 0,
     "cycle_started_at": null,
-    "last_completed_at": "2026-09-17 20:00:54",
+    "last_completed_at": "2026-09-17 16:18:25",
     "last_cycle_total": 20
   }
 }
