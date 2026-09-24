@@ -137,7 +137,17 @@ async function fetchJsonInBrowser(url, options = {}) {
   }
 
   if (result.error) {
-    throw new Error(`Fetch failed (${url}): ${result.error}`);
+    /* 🚩 2026-09-24: ここに印が無かったので、**公式サイト側の403が毎回メールになっていた**。
+       印の意味は db.js/index.js と同じ「次の回で拾い直せる失敗」。
+       公式は Cloudflare で守られていて、関門を抜けられない回・抜けたのに403が返る回がある。
+       未処理ぶんはサーバ側に残り次の回が拾い直すので、1回ごとにメールを出す意味が無い。
+       ⚠ 黙らせっぱなしにはしない。index.js が **連続で失敗した回数**を数えていて、
+          続くようなら（＝自力で治っていない）そこで落としてメールを出す。 */
+    const err = new Error(`Fetch failed (${url}): ${result.error}`);
+    err.pmTransient = true;
+    err.pmUpstream = true;
+    err.pmStatus = result.status;
+    throw err;
   }
 
   return { status: result.status, data: result.data };

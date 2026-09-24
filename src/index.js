@@ -5,6 +5,60 @@ const { runTournamentResultTask } = require('./tasks/tournament_result');
 const { closeBrowserSession } = require('./browser');
 const { closePool } = require('./db');
 const logger = require('./logger');
+const fs = require('fs');
+const path = require('path');
+
+/* 🚩 「今回は取れなかった」を黙って見逃し続けないための数取り器（2026-09-24）。
+   公式サイト側の403は次の回で拾い直せるのでメールを出さない（下の catch）。
+   ただし**自力で治っていない**なら気づかないといけないので、
+   連続で失敗した回数を state に書き、続いたらそこで落としてメールを出す。
+   state/ は各ワークフローが毎回コミットして持ち回っている。 */
+const HEALTH_FILE = path.join(__dirname, '../state/upstream_health.json');
+const MAX_CONSECUTIVE_FAILURES = 6;   /* 毎時なら約6時間ぶん */
+
+function loadHealth() {
+  try {
+    if (fs.existsSync(HEALTH_FILE)) return JSON.parse(fs.readFileSync(HEALTH_FILE, 'utf8')) || {};
+  } catch (e) {
+    logger.warn(`upstream_health を読めませんでした: ${e.message}`);
+  }
+  return {};
+}
+
+function saveHealth(health) {
+  try {
+    fs.mkdirSync(path.dirname(HEALTH_FILE), { recursive: true });
+    fs.writeFileSync(HEALTH_FILE, JSON.stringify(health, null, 2), 'utf8');
+  } catch (e) {
+    logger.warn(`upstream_health を書けませんでした: ${e.message}`);
+  }
+}
+
+/** @returns 連続失敗がしきい値に達したら true（= ここで落としてメールを出す） */
+function noteUpstreamFailure(task, reason) {
+  const health = loadHealth();
+  const key = task || 'all';
+  const cur = health[key] || {};
+  const n = (cur.consecutive_failures || 0) + 1;
+  health[key] = {
+    consecutive_failures: n,
+    last_failure_at: new Date().toISOString(),
+    last_reason: String(reason || '').slice(0, 300)
+  };
+  saveHealth(health);
+  logger.warn(`公式サイト側の失敗 ${n} 回目（連続）。${MAX_CONSECUTIVE_FAILURES} 回続いたら落とします`);
+  return n >= MAX_CONSECUTIVE_FAILURES;
+}
+
+function noteUpstreamOk(task) {
+  const health = loadHealth();
+  const key = task || 'all';
+  if (health[key] && health[key].consecutive_failures) {
+    logger.info(`公式サイト側は復調しました（${health[key].consecutive_failures} 回連続の失敗から回復）`);
+  }
+  health[key] = { consecutive_failures: 0, last_ok_at: new Date().toISOString() };
+  saveHealth(health);
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -21,9 +75,19 @@ async function main() {
       case 'rank':
         await runPlayerRankTask();
         break;
-      case 'result':
-        await runTournamentResultTask();
+      case 'result': {
+        const res = await runTournamentResultTask();
+        /* フィードが取れなかった回は「0件」ではない。連続したら落とす */
+        if (res && res.feedFailed) {
+          if (noteUpstreamFailure(taskName, '最近の大会一覧が取れなかった')) {
+            logger.error(`最近の大会一覧が ${MAX_CONSECUTIVE_FAILURES} 回続けて取れていません。自力で治っていないので落とします`);
+            process.exitCode = 1;
+          }
+        } else {
+          noteUpstreamOk(taskName);
+        }
         break;
+      }
       default:
         logger.info('No specific task specified. Running all tasks sequentially...');
         await runTournamentInfoTask();
@@ -43,8 +107,14 @@ async function main() {
      *   落とさない（警告だけ）  : 返事が来ない／タイムアウト／相手が 5xx
      */
     if (err && err.pmTransient) {
-      logger.warn(`今回は届きませんでした（次の回で拾い直します）: ${err.message}`);
-      console.log('::warning::今回は受け口に届きませんでした。未処理ぶんは次の回で拾い直します');
+      const where = err.pmUpstream ? '公式サイト' : '受け口';
+      logger.warn(`今回は${where}から取れませんでした（次の回で拾い直します）: ${err.message}`);
+      console.log(`::warning::今回は${where}から取れませんでした。未処理ぶんは次の回で拾い直します`);
+      /* ⚠ 黙らせっぱなしにはしない。続くようなら自力で治っていないので落とす */
+      if (noteUpstreamFailure(taskName, err.message)) {
+        logger.error(`${MAX_CONSECUTIVE_FAILURES} 回続けて取れていません。自力で治っていないので落とします`);
+        process.exitCode = 1;
+      }
     } else {
       logger.error('Unhandled task error:', err.stack || err.message);
       process.exitCode = 1;

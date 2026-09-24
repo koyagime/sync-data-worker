@@ -3,6 +3,7 @@ const path = require('path');
 const { fetchJsonInBrowser } = require('../browser');
 const { postApiSync } = require('../db');
 const logger = require('../logger');
+const { rankCycleVerdict, PAGES_PER_RUN, RANKING_PAGE_SIZE } = require('../rank_rules');
 
 const STATE_FILE = path.join(__dirname, '../../state/player_rank_state.json');
 const LEAGUES = {
@@ -11,12 +12,7 @@ const LEAGUES = {
   junior: 'ジュニア'
 };
 
-/* 1回の実行で読むページ数の上限。
-   ⚠ master は全243ページ（約4,860人）。40 のままだと1周に7回＝(scheduleの実測で)丸1日かかる。
-      120 にすると3回で1周。1ページごとにブラウザで取りに行くので、1回あたり2〜3分伸びる。
-      403 や timeout が増えたら戻すこと。 */
-const PAGES_PER_RUN = 120;
-const RANKING_PAGE_SIZE = 20;
+
 
 function loadState() {
   try {
@@ -38,6 +34,7 @@ function saveState(state) {
     logger.error('Failed writing player rank state file:', e.message);
   }
 }
+
 
 async function runPlayerRankTask() {
   logger.info('--- Starting Player Rank Import Task ---');
@@ -120,11 +117,10 @@ async function runPlayerRankTask() {
          **まとめてランキング外**にする。だから「本当に読み切れた時」だけ送る。
          1ページも読めていない / 公式が言うページ数に届いていない = 向こうの不調とみなして送らない。
          （2026-09-24、旧世代の取り込みがこれをやって公開ページから全員が消えた） */
-      const trustEnd = reachedEnd
-        && pagesInCycle > 0
-        && (!totalPages || pagesInCycle >= totalPages);
+      const verdict = rankCycleVerdict(reachedEnd, pagesInCycle, totalPages);
+      const trustEnd = verdict.trustEnd;
       if (reachedEnd && !trustEnd) {
-        logger.error(`${label} (${league}) ⚠ 公式の一覧を読み切れませんでした（${pagesInCycle}/${totalPages || '?'} ページ）。掲載中の人はそのまま残します`);
+        logger.error(`${label} (${league}) ⚠ 公式の一覧を読み切れませんでした（${verdict.reason}）。掲載中の人はそのまま残します`);
       }
       if (allPlayers.length > 0) {
         for (let i = 0; i < allPlayers.length; i += BATCH_SIZE) {

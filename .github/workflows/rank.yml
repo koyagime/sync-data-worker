@@ -35,6 +35,12 @@ jobs:
       - name: Install Dependencies
         run: npm ci || npm install
 
+      # 通信しない計器。ここが赤なら取り込みは静かに切り捨てる形になっている。
+      # 2026-09-24: 公式の count を人数だと思って比べていたため、約1年 4,860人中260人しか
+      # 取り込めていなかった（ログ上は "cycle completed" で正常に見えていた）。
+      - name: 計器（打ち切り判定・通信なし）
+        run: node test/rank_pagination.test.js
+
       - name: Install Playwright Browsers & System Dependencies
         run: npx playwright install chromium --with-deps
 

@@ -128,16 +128,26 @@ async function runTournamentResultTask() {
 
   // Fetch feed of recent events with results
   const feedUrl = 'https://players.pokemon-card.com/event_search?order=4&result_resist=1&per_page=25&offset=0&event_type%5B%5D=3%3A1&event_type%5B%5D=3%3A2&event_type%5B%5D=3%3A7';
-  const { status, data } = await fetchJsonInBrowser(feedUrl);
 
-  /* ⚠ フィードが空でも **ここで return しない**。
-     取り残し（結果公開が遅れた大会）は毎回追いかける必要がある。
-     以前はここで抜けていたので、フィードが空の回は何もしていなかった。 */
-  const events = (status === 404 || !data || !Array.isArray(data.event)) ? [] : data.event;
-  if (events.length === 0) {
-    logger.info('No recent event results in feed — going straight to the backlog.');
-  } else {
-    logger.info(`Fetched ${events.length} recent result events from feed.`);
+  /* 🚨 2026-09-24: ここは try/catch が無い最初の一発だった。
+     公式が403を返すとここで throw して、**後ろの待ち行列（取り残しの消化）まで丸ごと走らなかった**。
+     待ち行列はこちらのサーバから貰う一覧なので、フィードが取れなくても進められる。
+     ⚠ 「取れなかった」と「0件」は**混ぜない**（md_memory/109 §12-3）。
+        取れなかった回は feedFailed を立てて、呼び出し側が連続失敗として数える。 */
+  let events = [];
+  let feedFailed = false;
+  try {
+    const { status, data } = await fetchJsonInBrowser(feedUrl);
+    events = (status === 404 || !data || !Array.isArray(data.event)) ? [] : data.event;
+    if (events.length === 0) {
+      logger.info('No recent event results in feed — going straight to the backlog.');
+    } else {
+      logger.info(`Fetched ${events.length} recent result events from feed.`);
+    }
+  } catch (e) {
+    feedFailed = true;
+    logger.warn(`最近の大会一覧が取れませんでした（0件ではなく**取れなかった**）: ${e.message}`);
+    console.log('::warning::最近の大会一覧が取れませんでした。取り残しの消化だけ進めます');
   }
 
   const deckIdSet = new Set();
@@ -305,6 +315,8 @@ async function runTournamentResultTask() {
 
   logger.info(`Saved ${totalPlayersSaved} players and ${totalDecksSaved} decks to DB.`);
   logger.info('--- Tournament Result & Deck Import Task Completed ---');
+
+  return { feedFailed };
 }
 
 module.exports = { runTournamentResultTask };
