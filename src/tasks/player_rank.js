@@ -5,7 +5,9 @@ const { postApiSync } = require('../db');
 const logger = require('../logger');
 const { rankCycleVerdict, PAGES_PER_RUN, RANKING_PAGE_SIZE } = require('../rank_rules');
 
-const STATE_FILE = path.join(__dirname, '../../state/player_rank_state.json');
+/* ⚠ テストから別の場所を指せるようにしておく（本番の state を踏まないため） */
+const STATE_FILE = process.env.PLAYER_RANK_STATE_FILE
+  || path.join(__dirname, '../../state/player_rank_state.json');
 const LEAGUES = {
   master: 'マスター',
   senior: 'シニア',
@@ -39,6 +41,7 @@ function saveState(state) {
 async function runPlayerRankTask() {
   logger.info('--- Starting Player Rank Import Task ---');
   const state = loadState();
+  const failures = [];
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   for (const [league, label] of Object.entries(LEAGUES)) {
@@ -46,6 +49,11 @@ async function runPlayerRankTask() {
       const leagueState = state[league] || {};
       let offset = leagueState.offset || 0;
       let cycleStartedAt = leagueState.cycle_started_at;
+      /* このサイクルで**これまでに**読んだページ数。master は複数回に分かれるので持ち越す。
+         ⚠ 下の `if (!cycleStartedAt)` で 0 に戻すので、**宣言はそれより前**に置くこと
+            （2026-09-24: 後ろに置いていて "Cannot access 'cyclePages' before initialization" で
+              3リーグとも落ちた。node --check は通る＝構文では捕まらない） */
+      let cyclePages = leagueState.cycle_pages || 0;
 
       if (!cycleStartedAt) {
         cycleStartedAt = now;
@@ -55,11 +63,10 @@ async function runPlayerRankTask() {
       }
 
       let pagesFetched = 0;
+      let prefectureNoted = false;   /* 都道府県の知らせはリーグごとに1回だけ */
       let allPlayers = [];
       let reachedEnd = false;
       let totalPages = null;
-      /* このサイクルで**これまでに**読んだページ数。master は複数回に分かれるので持ち越す */
-      let cyclePages = leagueState.cycle_pages || 0;
 
       while (pagesFetched < PAGES_PER_RUN) {
         const pageNo = Math.floor(offset / RANKING_PAGE_SIZE) + 1;
@@ -79,13 +86,17 @@ async function runPlayerRankTask() {
            公式は Cloudflare で守られていて手元からは叩けない。ここが唯一の観測点。
            → 1ページにつき1回だけ、有無と（無いときは）項目名一覧を残す。
            ⚠ 毎行出すとログが埋まるので、**最初の1行だけ**。 */
-        if (players.length > 0) {
+        /* ⚠ 2026-09-24: これを **毎ページ ERROR で**出していたので、1回の実行で13行の赤が並び、
+           本当の失敗が埋もれていた。受け口(api_sync.php)は `prefectureName` を番号に直しているので
+           実害は無い。**リーグごとに1回だけ**にする。 */
+        if (players.length > 0 && !prefectureNoted) {
+          prefectureNoted = true;
           const p0 = players[0];
           if (p0 && Object.prototype.hasOwnProperty.call(p0, 'prefectureId')) {
             const filled = players.filter((x) => x && x.prefectureId !== null && x.prefectureId !== undefined).length;
-            logger.info(`[prefecture] ${label}(${league}) p${pageNo}: prefectureId あり — ${filled}/${players.length} 件に値が入っている`);
+            logger.info(`[prefecture] ${label}(${league}): prefectureId あり — ${filled}/${players.length} 件に値が入っている`);
           } else {
-            logger.error(`[prefecture] ${label}(${league}) p${pageNo}: **prefectureId が返ってきていない**。実際の項目名: ${Object.keys(p0 || {}).join(', ')}`);
+            logger.warn(`[prefecture] ${label}(${league}): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: ${Object.keys(p0 || {}).join(', ')}`);
           }
         }
 
@@ -160,8 +171,18 @@ async function runPlayerRankTask() {
       saveState(state);
 
     } catch (err) {
+      failures.push(`${label}(${league}): ${err.message}`);
       logger.error(`Error processing player rank for ${label} (${league}):`, err.message);
     }
+  }
+
+  /* 🚨 2026-09-24: リーグごとに catch して握りつぶしていたので、
+     **3リーグとも落ちたのにワークフローは緑**だった（偽の緑）。
+     1つでも通っていれば次の回で拾い直せるが、**全部落ちたのは知らせる**。 */
+  if (failures.length >= Object.keys(LEAGUES).length) {
+    const e = new Error(`全リーグで取り込みに失敗しました: ${failures.join(' / ')}`);
+    logger.error(e.message);
+    throw e;
   }
 
   logger.info('--- Player Rank Import Task Completed ---');

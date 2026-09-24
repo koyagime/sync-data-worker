@@ -41,6 +41,11 @@ jobs:
       - name: 計器（打ち切り判定・通信なし）
         run: node test/rank_pagination.test.js
 
+      # 本体を実際に動かしてみる（通信は偽物）。node --check は構文しか見ないので、
+      # 2026-09-24 に「宣言の位置ちがい」で3リーグとも落ちたのに緑だった。
+      - name: 計器（本体を動かしてみる・通信なし）
+        run: node test/rank_run_smoke.test.js
+
       - name: Install Playwright Browsers & System Dependencies
         run: npx playwright install chromium --with-deps
 
