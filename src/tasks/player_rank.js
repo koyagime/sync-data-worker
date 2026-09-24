@@ -11,7 +11,11 @@ const LEAGUES = {
   junior: 'ジュニア'
 };
 
-const PAGES_PER_RUN = 40;
+/* 1回の実行で読むページ数の上限。
+   ⚠ master は全243ページ（約4,860人）。40 のままだと1周に7回＝(scheduleの実測で)丸1日かかる。
+      120 にすると3回で1周。1ページごとにブラウザで取りに行くので、1回あたり2〜3分伸びる。
+      403 や timeout が増えたら戻すこと。 */
+const PAGES_PER_RUN = 120;
 const RANKING_PAGE_SIZE = 20;
 
 function loadState() {
@@ -49,13 +53,16 @@ async function runPlayerRankTask() {
       if (!cycleStartedAt) {
         cycleStartedAt = now;
         offset = 0;
+        cyclePages = 0;
         logger.info(`Starting new rank fetch cycle for ${label} (${league})...`);
       }
 
       let pagesFetched = 0;
       let allPlayers = [];
       let reachedEnd = false;
-      let totalCount = null;
+      let totalPages = null;
+      /* このサイクルで**これまでに**読んだページ数。master は複数回に分かれるので持ち越す */
+      let cyclePages = leagueState.cycle_pages || 0;
 
       while (pagesFetched < PAGES_PER_RUN) {
         const pageNo = Math.floor(offset / RANKING_PAGE_SIZE) + 1;
@@ -88,9 +95,18 @@ async function runPlayerRankTask() {
         allPlayers = allPlayers.concat(players);
         pagesFetched++;
         offset += players.length;
-        if (data.count) totalCount = data.count;
+        /* 🚨 2026-09-24: 公式の `count` は **ページ数**であって人数ではない。
+           実測（ブラウザで get_player_ranking を直接叩いた）:
+             master count=243 / senior count=42 / junior count=29
+           = 公式の公開ページ(/event/ranking)の「◯ページ中」と一致する。1ページ20人。
+           これを人数だと思って `offset(人数) >= count(ページ数)` で打ち切っていたため、
+           master は 13ページ=260人で「読み切った」ことになっていた（本当は 243ページ=約4,860人）。
+           しかもログには "cycle completed" と出るので、**正常に見えたまま**
+           1年近く上位260人しか取り込めていなかった。
+           → ページ数どうしで比べる。 */
+        if (data.count) totalPages = Number(data.count) || totalPages;
 
-        if (totalCount && offset >= totalCount) {
+        if (totalPages && cyclePages + pagesFetched >= totalPages) {
           reachedEnd = true;
           break;
         }
@@ -99,6 +115,17 @@ async function runPlayerRankTask() {
       // Sync via PHP bridge in batches
       const BATCH_SIZE = 100;
       let syncResult = { affected: 0, dropped: 0 };
+      const pagesInCycle = cyclePages + pagesFetched;
+      /* 🚨 `is_end` を送ると、受け口(api_sync.php)が「今回の一覧に居なかった人」を
+         **まとめてランキング外**にする。だから「本当に読み切れた時」だけ送る。
+         1ページも読めていない / 公式が言うページ数に届いていない = 向こうの不調とみなして送らない。
+         （2026-09-24、旧世代の取り込みがこれをやって公開ページから全員が消えた） */
+      const trustEnd = reachedEnd
+        && pagesInCycle > 0
+        && (!totalPages || pagesInCycle >= totalPages);
+      if (reachedEnd && !trustEnd) {
+        logger.error(`${label} (${league}) ⚠ 公式の一覧を読み切れませんでした（${pagesInCycle}/${totalPages || '?'} ページ）。掲載中の人はそのまま残します`);
+      }
       if (allPlayers.length > 0) {
         for (let i = 0; i < allPlayers.length; i += BATCH_SIZE) {
           const batch = allPlayers.slice(i, i + BATCH_SIZE);
@@ -106,7 +133,7 @@ async function runPlayerRankTask() {
           const res = await postApiSync('rank', {
             league,
             players: batch,
-            is_end: reachedEnd && isLastBatch,
+            is_end: trustEnd && isLastBatch,
             cycle_started_at: cycleStartedAt
           });
           syncResult.affected += (res.affected || 0);
@@ -115,21 +142,23 @@ async function runPlayerRankTask() {
       }
 
       if (reachedEnd) {
-        logger.info(`${label} (${league}) cycle completed. Processed: ${syncResult.affected || 0}, Dropped: ${syncResult.dropped || 0}.`);
+        logger.info(`${label} (${league}) cycle ${trustEnd ? 'completed' : 'aborted'}. Pages: ${pagesInCycle}/${totalPages || '?'}, Processed: ${syncResult.affected || 0}, Dropped: ${syncResult.dropped || 0}.`);
         state[league] = {
           offset: 0,
           cycle_started_at: null,
-          last_completed_at: now,
-          last_cycle_total: offset
+          cycle_pages: 0,
+          last_completed_at: trustEnd ? now : (leagueState.last_completed_at || null),
+          last_cycle_total: trustEnd ? offset : (leagueState.last_cycle_total || null)
         };
       } else {
         state[league] = {
           offset,
           cycle_started_at: cycleStartedAt,
+          cycle_pages: pagesInCycle,
           last_completed_at: leagueState.last_completed_at || null,
           last_cycle_total: leagueState.last_cycle_total || null
         };
-        logger.info(`${label} (${league}) batch fetched ${allPlayers.length} players (offset: ${offset}).`);
+        logger.info(`${label} (${league}) batch fetched ${allPlayers.length} players (pages ${pagesInCycle}/${totalPages || '?'}, offset: ${offset}).`);
       }
 
       saveState(state);
