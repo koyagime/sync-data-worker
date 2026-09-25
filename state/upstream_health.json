@@ -1,7 +1,6 @@
 {
   "result": {
-    "consecutive_failures": 1,
-    "last_failure_at": "2026-09-25T16:31:38.136Z",
-    "last_reason": "最近の大会一覧が取れなかった"
+    "consecutive_failures": 0,
+    "last_ok_at": "2026-09-25T16:04:23.918Z"
   }
 }
