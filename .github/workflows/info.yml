@@ -62,7 +62,15 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add state/
-          git diff --quiet && git diff --staged --quiet && echo "state に変化なし" && exit 0
+          # 🚨 2026-09-28: ここは以前 `git diff --quiet && git diff --staged --quiet` だった。
+          #    前半は **作業ツリー全体**の未ステージ変更を見るので、毎回書き換わる
+          #    `logs/tcg_runner.log` のせいで **常に成立しない** → 早じまいできず、
+          #    何もステージされていないのに git commit へ進み、
+          #    "no changes added to commit" で終了コード1 → `bash -e` でステップごと失敗していた。
+          #    公式が403を返して state が変わらない回にだけ出るので、
+          #    Cloudflare が厳しくなった 9/25 以降に失敗メールが日20通まで増えた。
+          #    → **ステージされたものだけ**を見る。
+          if git diff --staged --quiet; then echo "state に変化なし"; exit 0; fi
           # ⚠ state は毎回まるごと作り直すファイル。別の実行と衝突すると rebase では解決できない
           #    （同じ JSON を両方が書き換えるため必ず CONFLICT になる。2026-08-07 に実際に踏んだ）。
           #    → 取り込んでから **今回作った state を上書きし直す**。衝突しようがない形にする。
