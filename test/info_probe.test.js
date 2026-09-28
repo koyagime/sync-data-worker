@@ -39,6 +39,10 @@ stub('../src/browser', {
   },
   closeBrowserSession: async () => {}
 });
+/* ⚠ 本体の logger をそのまま鳴らすと、CI のログが**本番の実行と見分けられなくなる**。
+   2026-09-28 に実際に取り違えて「総数が持ち越せていない」と誤診した（計器の出力を本番と読んだ）。
+   → 計器の中の本体ログは黙らせる（失敗は assert が出す）。 */
+stub('../src/logger', { info() {}, warn() {}, error() {}, debug() {} });
 stub('../src/db', { async postApiSync() { return {}; }, getPool: () => null, closePool: async () => {} });
 stub('../src/discord', { async sendEventNotifications(_u, label, _h, events) { notified.push({ label, n: events.length }); } });
 
