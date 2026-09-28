@@ -69,16 +69,17 @@ const { PAGES_PER_RUN } = require('../src/rank_rules');
     assert.ok(posted.some((p) => p.league === 'senior' && p.is_end), 'senior は is_end を送る');
   });
 
-  /* 2回目・3回目 — 続きから読む */
+  /* 2回目 — 続きから読む（つまみの値に依らず「上限+1ページ目」から） */
   fetched = [];
   await runPlayerRankTask();
-  check('2回目は続きのページから読む', () => assert.strictEqual(fetched[0], 'master:121'));
+  check('2回目は続きのページから読む', () =>
+    assert.strictEqual(fetched[0], `master:${PAGES_PER_RUN + 1}`));
 
-  fetched = [];
-  posted.length = 0;
-  await runPlayerRankTask();
-  check('3回目で master を読み切り、is_end を送る', () => {
-    assert.ok(fetched.includes('master:243'), '243ページ目まで読む');
+  /* 残りを回して読み切る。**回数はつまみから計算する**（値を固定しない） */
+  const runsNeeded = Math.ceil(TOTAL_PAGES.master / PAGES_PER_RUN);
+  for (let r = 3; r <= runsNeeded; r++) { fetched = []; posted.length = 0; await runPlayerRankTask(); }
+  check(`${runsNeeded}回で master を読み切り、is_end を送る`, () => {
+    assert.ok(fetched.includes(`master:${TOTAL_PAGES.master}`), '最後のページまで読む');
     assert.ok(posted.some((p) => p.league === 'master' && p.is_end), 'is_end を送る');
   });
 
@@ -91,5 +92,5 @@ const { PAGES_PER_RUN } = require('../src/rank_rules');
 
   fs.rmSync(tmp, { recursive: true, force: true });
   if (ng) { console.error(`\n❌ ${ng} 件。`); process.exit(1); }
-  console.log('\n✅ 3回で master 243ページ 4,860人を読み切り、途中では終わりと言わない');
+  console.log(`\n✅ ${runsNeeded}回で master ${TOTAL_PAGES.master}ページ ${TOTAL_PAGES.master * PAGE_SIZE}人を読み切り、途中では終わりと言わない`);
 })();

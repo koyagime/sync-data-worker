@@ -1468,3 +1468,136 @@
 [2026-09-24T17:06:57] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
 [2026-09-24T17:06:57] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
 [2026-09-24T17:06:57] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:25:19] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:25:19] [INFO] Starting new rank fetch cycle for マスター (master)...
+[2026-09-28T11:25:19] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] マスター (master) batch fetched 1200 players (pages 60/243, offset: 1200).
+[2026-09-28T11:25:19] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:25:19] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:25:19] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:25:19] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:25:19] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:25:19] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:25:19] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] マスター (master) batch fetched 1200 players (pages 120/243, offset: 2400).
+[2026-09-28T11:25:19] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:25:19] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:25:19] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:25:19] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:25:19] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:25:19] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:25:19] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] マスター (master) batch fetched 1200 players (pages 180/243, offset: 3600).
+[2026-09-28T11:25:19] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:25:19] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:25:19] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:25:19] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:19] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:25:19] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:25:43] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for マスター (master)...
+[2026-09-28T11:25:43] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] マスター (master) batch fetched 1200 players (pages 60/243, offset: 1200).
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:25:43] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:25:43] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] マスター (master) batch fetched 1200 players (pages 120/243, offset: 2400).
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:25:43] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:25:43] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] マスター (master) batch fetched 1200 players (pages 180/243, offset: 3600).
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:25:43] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:25:43] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] マスター (master) batch fetched 1200 players (pages 240/243, offset: 4800).
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:25:43] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:25:43] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] マスター (master) cycle completed. Pages: 243/243, Processed: 60, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:25:43] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:25:43] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:25:43] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:26:03] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for マスター (master)...
+[2026-09-28T11:26:03] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] マスター (master) batch fetched 1200 players (pages 60/243, offset: 1200).
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:26:03] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:26:03] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] マスター (master) batch fetched 1200 players (pages 120/243, offset: 2400).
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:26:03] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:26:03] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] マスター (master) batch fetched 1200 players (pages 180/243, offset: 3600).
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:26:03] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:26:03] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] マスター (master) batch fetched 1200 players (pages 240/243, offset: 4800).
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] --- Player Rank Import Task Completed ---
+[2026-09-28T11:26:03] [INFO] --- Starting Player Rank Import Task ---
+[2026-09-28T11:26:03] [WARN] [prefecture] マスター(master): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] マスター (master) cycle completed. Pages: 243/243, Processed: 60, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for シニア (senior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] シニア(senior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] シニア (senior) cycle completed. Pages: 42/42, Processed: 840, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] Starting new rank fetch cycle for ジュニア (junior)...
+[2026-09-28T11:26:03] [WARN] [prefecture] ジュニア(junior): prefectureId は返ってこない（prefectureName のみ）。受け口が名前→番号に直す。項目: id, playerId, nickname, currentLeagueId, currentRanking, prefectureName, championShipPoint, publicFlg, championFlg, avatarImage
+[2026-09-28T11:26:03] [INFO] ジュニア (junior) cycle completed. Pages: 29/29, Processed: 580, Dropped: 0.
+[2026-09-28T11:26:03] [INFO] --- Player Rank Import Task Completed ---

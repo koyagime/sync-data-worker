@@ -50,10 +50,14 @@ check('offset から pageNo が正しく出る', () => {
   assert.strictEqual(pageNoOf(2400), 121);
 });
 
-/* ── 1周に何回かかるか（PAGES_PER_RUN を下げすぎ/上げすぎたら気づく） ── */
-check('master 243ページが 1〜3回の実行で1周できる', () => {
+/* ── 1周に何回かかるか ──────────────────────────────
+   rank.yml は実測で1日 5〜6回しか回らない（GitHub の schedule は遅延・スキップする）。
+   なので **1日で1周できる** = 6回以内、が条件。
+   ⚠ ここで「ちょうど3回」のように**つまみの値そのもの**を固定しない。
+      固定すると、負荷を下げたくて減らしたときに計器が邪魔をする。 */
+check('master 243ページが 1日ぶんの実行回数（6回）以内で1周できる', () => {
   const runs = Math.ceil(243 / PAGES_PER_RUN);
-  assert.ok(runs >= 1 && runs <= 3, `いまの PAGES_PER_RUN=${PAGES_PER_RUN} だと ${runs} 回かかる`);
+  assert.ok(runs >= 1 && runs <= 6, `いまの PAGES_PER_RUN=${PAGES_PER_RUN} だと ${runs} 回かかる（1日で1周できない）`);
 });
 
 if (ng) { console.error(`\n❌ ${ng} 件。取り込みが静かに切り捨てる形になっています。`); process.exit(1); }

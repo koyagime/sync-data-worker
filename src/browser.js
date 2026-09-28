@@ -47,8 +47,23 @@ async function establishCloudflareSession(page) {
     logger.warn(`Cloudflare challenge still showing after 30s (attempt ${attempt}/3).`);
   }
 
-  logger.warn('Proceeding without a confirmed Cloudflare session -- fetches may return 403.');
+  logger.warn('Cloudflare の関門を抜けられませんでした。この回は取りに行きません（次の回で拾い直します）');
   return false;
+}
+
+/**
+ * 🚨 2026-09-28: 関門を抜けられないまま取りに行くと、
+ *    「403 → その場で関門をやり直す → また403」を1リクエストごとに繰り返していた。
+ *    こちらから押し返しているのと同じで、向こうを刺激するし時間も食う
+ *    （実測 9/25〜9/27 は info の所要が90%点で 195→217→231秒 まで伸びた）。
+ *    → 抜けられなかった回は**取りに行かずに諦める**。取り残しは次の回が拾う。
+ */
+function upstreamBusyError(url) {
+  const err = new Error(`Cloudflare の関門を抜けられませんでした (${url})`);
+  err.pmTransient = true;
+  err.pmUpstream = true;
+  err.pmBusy = true;
+  return err;
 }
 
 async function initBrowserSession() {
@@ -118,18 +133,30 @@ async function evalJsonFetch(page, url, options) {
   }, { fetchUrl: url, fetchOptions: options });
 }
 
+/* この実行で関門を抜けられなかったと判ったら、以降は取りに行かない（1回だけ諦める判断をする） */
+let sessionGivenUp = false;
+function resetSessionGivenUp() { sessionGivenUp = false; }
+
 async function fetchJsonInBrowser(url, options = {}) {
+  if (sessionGivenUp) throw upstreamBusyError(url);
+
   const { page } = await initBrowserSession();
 
   let result = await evalJsonFetch(page, url, options);
 
-  /* A 403 means the clearance cookie is missing or expired, not that the data is
-     gone. Re-run the challenge and try once more -- a single 403 used to abort the
-     entire run, losing every event it had not fetched yet. */
+  /* 403 は「データが無い」ではなく「通行証が無い/切れた」。1度だけ関門をやり直して取り直す。
+     ⚠ やり直しても駄目なら**この実行は終わり**にする（2026-09-28）。
+        以前は1リクエストごとに無限にやり直していて、押し返しになっていた。 */
   if (result.status === 403) {
-    logger.warn(`HTTP 403 from ${url} -- re-running the Cloudflare challenge, then retrying once.`);
-    await establishCloudflareSession(page);
+    logger.warn(`HTTP 403 from ${url} -- 関門をやり直して1回だけ取り直します`);
+    const ok = await establishCloudflareSession(page);
+    if (!ok) { sessionGivenUp = true; throw upstreamBusyError(url); }
     result = await evalJsonFetch(page, url, options);
+    if (result.status === 403) {
+      logger.warn('関門をやり直しても403でした。この実行はここで諦めます（次の回で拾い直します）');
+      sessionGivenUp = true;
+      throw upstreamBusyError(url);
+    }
   }
 
   if (result.status === 404) {
@@ -201,6 +228,7 @@ async function closeBrowserSession() {
 }
 
 module.exports = {
+  resetSessionGivenUp,
   initBrowserSession,
   fetchJsonInBrowser,
   fetchHtmlInBrowser,
