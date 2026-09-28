@@ -53,7 +53,7 @@
     "last_success": 1790606392,
     "counts": {
       "t": 47,
-      "f": 566
+      "f": 564
     },
     "last_full_scan": 1790606392,
     "scan_started_at": 0
@@ -314,12 +314,12 @@
       "1208:1942703",
       "1208:1941990"
     ],
-    "last_success": 1790605675,
+    "last_success": 1790607683,
     "counts": {
       "t": 252,
-      "f": 633
+      "f": 621
     },
-    "last_full_scan": 1790605675,
+    "last_full_scan": 1790607683,
     "scan_started_at": 0
   }
 }
