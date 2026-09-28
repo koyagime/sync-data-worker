@@ -5,9 +5,24 @@ const { postApiSync, getPool } = require('../db');
 const { sendEventNotifications } = require('../discord');
 const logger = require('../logger');
 
-const STATE_FILE = path.join(__dirname, '../../state/tournament_info_state.json');
+const STATE_FILE = process.env.TOURNAMENT_INFO_STATE_FILE
+  || path.join(__dirname, '../../state/tournament_info_state.json');
 const RESUME_SILENT_AFTER_SECONDS = parseInt(process.env.RESUME_SILENT_AFTER_SECONDS || '7200', 10);
 const INACTIVE_FETCH_INTERVAL = 28800;
+
+/* 🚨 2026-09-28: 通知のたびに全件を取り直していた。
+   シティリーグ3ページ + その他大会13ページ = 1回16ページ。5分おき288回/日で約4,600ページ。
+   目的は「募集開始・空き枠が出た」ことを**すぐ**知らせることなので、
+   まず **総数だけ**を聞いて（1カテゴリ2リクエスト）、動いたときに全件を見に行く。
+
+   ⚠ 「1ページ目だけ見る」は**使えない**（2026-09-28 実測）。
+      `order=1` は開催日の昇順（09/29, 09/29, 10/03…）、`order=4` は降順。
+      **更新順に並べる指定は見つからなかった**ので、新しく開いた大会が1ページ目に来る保証がない。
+      一方 `eventCount` は総数そのものなので、増減は確実に判る。
+
+   ⚠ 「1つ閉じて1つ開く」が同じ窓に入ると受付中の総数が動かない。
+      そのため **受付終了の総数が増えた**ときも全件を見る（閉じた＝入れ替わりの可能性）。 */
+const FULL_SCAN_INTERVAL = parseInt(process.env.FULL_SCAN_INTERVAL || '1800', 10);   /* 何も動かなくても30分に1回は全件 */
 
 const CATEGORIES = {
   city_league: {
@@ -69,6 +84,32 @@ async function fetchCategoryEvents(catConfig, accepting) {
   return allEvents;
 }
 
+/**
+ * 総数だけを聞く（1カテゴリ 2リクエスト）。offset=0 の返りに `eventCount`（総数）が入っている。
+ * @returns {{t:number|null, f:number|null}} 受付中 / 受付終了 の総数。読めなければ null
+ */
+async function probeCounts(catConfig) {
+  const queryStr = Object.entries(catConfig.params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+  const one = async (accepting) => {
+    const { status, data } = await fetchJsonInBrowser(`https://players.pokemon-card.com/event_search?${queryStr}&accepting=${accepting}&offset=0`);
+    if (status === 404) return 0;                       /* 該当0件。エラーではない */
+    if (!data || typeof data.eventCount !== 'number') return null;
+    return data.eventCount;
+  };
+  return { t: await one('true'), f: await one('false') };
+}
+
+/** 全件を見に行くべきか。理由も返す（ログに出して後から追えるように） */
+function decideFullScan(prev, probe, sinceFullSec, forceNotify) {
+  if (forceNotify) return { need: true, why: 'FORCE_NOTIFY' };
+  if (!prev) return { need: true, why: '前回の総数を持っていない' };
+  if (probe.t === null || probe.f === null) return { need: true, why: '総数が読めなかった' };
+  if (probe.t !== prev.t) return { need: true, why: `受付中が ${prev.t} → ${probe.t}` };
+  if (probe.f > prev.f) return { need: true, why: `受付終了が ${prev.f} → ${probe.f}（入れ替わりの可能性）` };
+  if (sinceFullSec >= FULL_SCAN_INTERVAL) return { need: true, why: `前回の全件から ${Math.floor(sinceFullSec / 60)} 分` };
+  return { need: false, why: `受付中 ${probe.t} / 受付終了 ${probe.f} のまま` };
+}
+
 function formatSqlDate(val) {
   if (!val) return null;
   const s = String(val).trim();
@@ -112,7 +153,18 @@ async function runTournamentInfoTask() {
         logger.info(`Category [${cat.label}]: FORCE_NOTIFY active. Dispatching all active events to regional Discord channels.`);
       }
 
-      logger.info(`Category [${cat.label}]: Fetching active events...`);
+      /* まず総数だけ聞く。動いていなければここで終わり（1カテゴリ2リクエスト） */
+      const probe = await probeCounts(cat);
+      const verdict = decideFullScan(catState.counts || null, probe, nowSec - (catState.last_full_scan || 0), forceNotify);
+      catState.counts = probe;
+      if (!verdict.need) {
+        logger.info(`Category [${cat.label}]: 変化なし（${verdict.why}）。全件は見ません`);
+        state[catKey] = catState;
+        saveState(state);
+        continue;
+      }
+      logger.info(`Category [${cat.label}]: 全件を見ます — ${verdict.why}`);
+
       const activeEvents = await fetchCategoryEvents(cat, 'true');
       logger.info(`Category [${cat.label}]: Fetched ${activeEvents.length} active events.`);
 
@@ -146,6 +198,7 @@ async function runTournamentInfoTask() {
 
       catState.known_ids = activeEvents.map(e => `${e.id}:${e.date_id}`);
       catState.last_success = nowSec;
+      catState.last_full_scan = nowSec;
       state[catKey] = catState;
       saveState(state);
 
@@ -157,4 +210,4 @@ async function runTournamentInfoTask() {
   logger.info('--- Tournament Info Task Completed ---');
 }
 
-module.exports = { runTournamentInfoTask };
+module.exports = { runTournamentInfoTask, decideFullScan, FULL_SCAN_INTERVAL };
