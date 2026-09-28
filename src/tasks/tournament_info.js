@@ -24,6 +24,12 @@ const INACTIVE_FETCH_INTERVAL = 28800;
       そのため **受付終了の総数が増えた**ときも全件を見る（閉じた＝入れ替わりの可能性）。 */
 const FULL_SCAN_INTERVAL = parseInt(process.env.FULL_SCAN_INTERVAL || '1800', 10);   /* 何も動かなくても30分に1回は全件 */
 
+/* 🚨 全件を見ている最中に次の回が始まると、両方が「変わった」と判断して**同じ通知を2回**送る。
+   3分おきになったので現実的な話（全件は遅いと2分以上かかる）。
+   → 見に行く前に「いま見ている」印を残し、次の回はそれを見て譲る。
+   印が古くなったら（＝前の回が落ちた）やり直す。 */
+const SCAN_LOCK_SECONDS = parseInt(process.env.SCAN_LOCK_SECONDS || '300', 10);
+
 const CATEGORIES = {
   city_league: {
     label: 'シティリーグ',
@@ -156,14 +162,26 @@ async function runTournamentInfoTask() {
       /* まず総数だけ聞く。動いていなければここで終わり（1カテゴリ2リクエスト） */
       const probe = await probeCounts(cat);
       const verdict = decideFullScan(catState.counts || null, probe, nowSec - (catState.last_full_scan || 0), forceNotify);
-      catState.counts = probe;
       if (!verdict.need) {
+        catState.counts = probe;
         logger.info(`Category [${cat.label}]: 変化なし（${verdict.why}）。全件は見ません`);
         state[catKey] = catState;
         saveState(state);
         continue;
       }
+      const lockAge = nowSec - (catState.scan_started_at || 0);
+      if (catState.scan_started_at && lockAge < SCAN_LOCK_SECONDS) {
+        /* ⚠ ここで counts を**書き換えない**。書き換えると「変わった」が消えて、
+           譲った先が落ちたときに誰も見に行かなくなる（2026-09-28 計器で捕まえた）。 */
+        logger.info(`Category [${cat.label}]: 別の回が全件を見ています（${lockAge}秒前に開始）。譲ります`);
+        continue;
+      }
+
       logger.info(`Category [${cat.label}]: 全件を見ます — ${verdict.why}`);
+      catState.counts = probe;
+      catState.scan_started_at = nowSec;          /* 先に印を置く（保存してから見に行く） */
+      state[catKey] = catState;
+      saveState(state);
 
       const activeEvents = await fetchCategoryEvents(cat, 'true');
       logger.info(`Category [${cat.label}]: Fetched ${activeEvents.length} active events.`);
@@ -199,6 +217,7 @@ async function runTournamentInfoTask() {
       catState.known_ids = activeEvents.map(e => `${e.id}:${e.date_id}`);
       catState.last_success = nowSec;
       catState.last_full_scan = nowSec;
+      catState.scan_started_at = 0;               /* 見終わったので印を外す */
       state[catKey] = catState;
       saveState(state);
 

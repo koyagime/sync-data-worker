@@ -85,6 +85,28 @@ const check = (label, fn) => { try { fn(); console.log('✅ ' + label); } catch 
   check('動いていない方（その他大会）は全件に行かない', () =>
     assert.ok(!pages.some((p) => p.startsWith('3:7')), 'その他大会まで全件取っている'));
 
+  /* ── 重なったときに同じ通知を2回出さない ─────────────────
+     3分おきになったので、全件を見ている最中に次の回が始まりうる。
+     「いま見ている」印を state に残して、次の回は譲る。 */
+  reset();
+  counts['3:2'].t += 1;                          /* また空きが出た */
+  const st = JSON.parse(fs.readFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, 'utf8'));
+  st.city_league.scan_started_at = Math.floor(Date.now() / 1000);   /* 別の回が見ている最中 */
+  fs.writeFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, JSON.stringify(st));
+  await runTournamentInfoTask();
+  check('別の回が全件を見ている最中は譲る（通知を二重に出さない）', () => {
+    assert.ok(!pages.some((p) => p.startsWith('3:2:true')), '譲らずに全件を取っている');
+    assert.ok(!notified.some((x) => x.label === 'シティリーグ'), '二重に通知している');
+  });
+
+  reset();
+  const st2 = JSON.parse(fs.readFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, 'utf8'));
+  st2.city_league.scan_started_at = Math.floor(Date.now() / 1000) - 3600;   /* 1時間前＝前の回は落ちた */
+  fs.writeFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, JSON.stringify(st2));
+  await runTournamentInfoTask();
+  check('印が古ければやり直す（前の回が落ちても止まらない）', () =>
+    assert.ok(pages.some((p) => p.startsWith('3:2:true')), '古い印に引っかかって永久に見に行かない'));
+
   fs.rmSync(tmp, { recursive: true, force: true });
   if (ng) { console.error(`\n❌ ${ng} 件。`); process.exit(1); }
   console.log('\n✅ 総数が動いたときだけ全件を見に行き、動いた側だけ通知する');
