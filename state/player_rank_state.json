@@ -10,14 +10,14 @@
     "offset": 0,
     "cycle_started_at": null,
     "cycle_pages": 0,
-    "last_completed_at": "2026-09-28 10:37:04",
-    "last_cycle_total": 1054
+    "last_completed_at": "2026-09-29 17:42:14",
+    "last_cycle_total": 1062
   },
   "junior": {
     "offset": 0,
     "cycle_started_at": null,
     "cycle_pages": 0,
-    "last_completed_at": "2026-09-28 10:37:04",
-    "last_cycle_total": 718
+    "last_completed_at": "2026-09-29 17:42:14",
+    "last_cycle_total": 720
   }
 }
