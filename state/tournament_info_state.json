@@ -54,11 +54,11 @@
     ],
     "last_success": 1791026698,
     "counts": {
-      "t": 49,
+      "t": 48,
       "f": 555
     },
     "last_full_scan": 1791026698,
-    "scan_started_at": 0
+    "scan_started_at": 1791026871
   },
   "other_events": {
     "last_inactive_fetch": 1791004737,
