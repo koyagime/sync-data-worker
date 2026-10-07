@@ -38,12 +38,12 @@
       "1246:1941309",
       "1246:1940212"
     ],
-    "last_success": 1791388313,
+    "last_success": 1791388611,
     "counts": {
       "t": 35,
       "f": 444
     },
-    "last_full_scan": 1791388313,
+    "last_full_scan": 1791388611,
     "scan_started_at": 0
   },
   "other_events": {
@@ -262,12 +262,12 @@
       "1208:1942703",
       "1208:1941990"
     ],
-    "last_success": 1791387777,
+    "last_success": 1791388611,
     "counts": {
       "t": 212,
       "f": 491
     },
-    "last_full_scan": 1791387777,
+    "last_full_scan": 1791388611,
     "scan_started_at": 0
   }
 }
