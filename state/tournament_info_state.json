@@ -39,11 +39,11 @@
     ],
     "last_success": 1791680823,
     "counts": {
-      "t": 34,
+      "t": 35,
       "f": 412
     },
     "last_full_scan": 1791680823,
-    "scan_started_at": 0
+    "scan_started_at": 1791680998
   },
   "other_events": {
     "last_inactive_fetch": 1791652907,
