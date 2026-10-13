@@ -1,7 +1,6 @@
 {
   "result": {
-    "consecutive_failures": 1,
-    "last_failure_at": "2026-10-13T12:00:27.736Z",
-    "last_reason": "timeout of 60000ms exceeded"
+    "consecutive_failures": 0,
+    "last_ok_at": "2026-10-13T12:01:25.416Z"
   }
 }
