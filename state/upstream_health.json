@@ -1,7 +1,6 @@
 {
   "result": {
-    "consecutive_failures": 1,
-    "last_failure_at": "2026-10-15T07:18:38.389Z",
-    "last_reason": "Request failed with status code 502"
+    "consecutive_failures": 0,
+    "last_ok_at": "2026-10-15T07:32:46.428Z"
   }
 }
