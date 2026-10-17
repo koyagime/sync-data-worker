@@ -7,17 +7,17 @@
     "last_cycle_total": 9422
   },
   "senior": {
-    "offset": 1200,
-    "cycle_started_at": "2026-10-17 11:23:31",
-    "cycle_pages": 60,
-    "last_completed_at": "2026-10-17 01:05:10",
-    "last_cycle_total": 1611
+    "offset": 0,
+    "cycle_started_at": null,
+    "cycle_pages": 0,
+    "last_completed_at": "2026-10-17 22:54:36",
+    "last_cycle_total": 1667
   },
   "junior": {
     "offset": 0,
     "cycle_started_at": null,
     "cycle_pages": 0,
-    "last_completed_at": "2026-10-17 11:23:31",
-    "last_cycle_total": 1071
+    "last_completed_at": "2026-10-17 22:54:36",
+    "last_cycle_total": 1123
   }
 }
