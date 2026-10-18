@@ -10,7 +10,7 @@
     "last_success": 1792334763,
     "counts": {
       "t": 4,
-      "f": 286
+      "f": 246
     },
     "last_full_scan": 1792334763,
     "scan_started_at": 0
@@ -150,7 +150,7 @@
     "last_success": 1792335466,
     "counts": {
       "t": 128,
-      "f": 283
+      "f": 253
     },
     "last_full_scan": 1792335466,
     "scan_started_at": 0
