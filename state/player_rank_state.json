@@ -7,17 +7,17 @@
     "last_cycle_total": 9422
   },
   "senior": {
-    "offset": 1200,
-    "cycle_started_at": "2026-10-18 14:20:03",
-    "cycle_pages": 60,
-    "last_completed_at": "2026-10-17 22:54:36",
+    "offset": 0,
+    "cycle_started_at": null,
+    "cycle_pages": 0,
+    "last_completed_at": "2026-10-18 17:51:34",
     "last_cycle_total": 1667
   },
   "junior": {
     "offset": 0,
     "cycle_started_at": null,
     "cycle_pages": 0,
-    "last_completed_at": "2026-10-18 14:20:03",
+    "last_completed_at": "2026-10-18 17:51:34",
     "last_cycle_total": 1123
   }
 }
