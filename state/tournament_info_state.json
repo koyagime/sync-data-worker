@@ -146,10 +146,10 @@
     ],
     "last_success": 1792387137,
     "counts": {
-      "t": 122,
+      "t": 123,
       "f": 253
     },
     "last_full_scan": 1792387137,
-    "scan_started_at": 0
+    "scan_started_at": 1792388208
   }
 }
