@@ -37,7 +37,13 @@ const CATEGORIES = {
     event_type: 2,
     params: { 'event_type[]': '3:2', order: '1' },
     headerMessage: '🔔 **【シティリーグ】の募集が開始/空き枠が発生しました！**',
-    webhookEnv: 'DISCORD_CITY_WEBHOOK'
+    webhookEnv: 'DISCORD_CITY_WEBHOOK',
+    /* 🚨 2026-10-20: シティリーグは**毎回まるごと見る**。
+       受付中の一覧に満席の大会が居座るので（実測4件中1件）、総数だけ見ていると
+       「満席が解けた＝キャンセルで空いた」に気づけない。
+       受付中は1〜3ページしかないので、総数を2回聞くのとほぼ同じ手間で済む。
+       その他大会は13ページあるので、そちらは総数の見張りのまま。 */
+    scanAlways: true
   },
   other_events: {
     label: 'その他大会',
@@ -125,8 +131,9 @@ function formatSqlDate(val) {
   return s;
 }
 
+/** @returns {Array} 受け口が見つけた「満席が解けた」大会（公式への取得は増えない） */
 async function saveEventsToDb(events, isActive) {
-  if (!events || events.length === 0) return;
+  if (!events || events.length === 0) return [];
 
   const formattedEvents = events.map(e => ({
     ...e,
@@ -134,11 +141,14 @@ async function saveEventsToDb(events, isActive) {
   }));
 
   const BATCH_SIZE = 100;
+  const freed = [];
   for (let i = 0; i < formattedEvents.length; i += BATCH_SIZE) {
     const batch = formattedEvents.slice(i, i + BATCH_SIZE);
     logger.info(`Sending batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(formattedEvents.length / BATCH_SIZE)} (${batch.length} events)...`);
-    await postApiSync('info', { events: batch, is_active: isActive });
+    const res = await postApiSync('info', { events: batch, is_active: isActive });
+    if (res && Array.isArray(res.freed)) freed.push(...res.freed);
   }
+  return freed;
 }
 
 async function runTournamentInfoTask() {
@@ -159,6 +169,8 @@ async function runTournamentInfoTask() {
         logger.info(`Category [${cat.label}]: FORCE_NOTIFY active. Dispatching all active events to regional Discord channels.`);
       }
 
+      /* シティリーグは毎回まるごと見る（上の scanAlways の理由）。総数は聞かない */
+      if (!cat.scanAlways) {
       /* まず総数だけ聞く。動いていなければここで終わり（1カテゴリ2リクエスト） */
       const probe = await probeCounts(cat);
       const verdict = decideFullScan(catState.counts || null, probe, nowSec - (catState.last_full_scan || 0), forceNotify);
@@ -182,6 +194,7 @@ async function runTournamentInfoTask() {
       catState.scan_started_at = nowSec;          /* 先に印を置く（保存してから見に行く） */
       state[catKey] = catState;
       saveState(state);
+      }
 
       const activeEvents = await fetchCategoryEvents(cat, 'true');
       logger.info(`Category [${cat.label}]: Fetched ${activeEvents.length} active events.`);
@@ -195,7 +208,7 @@ async function runTournamentInfoTask() {
       }
 
       // Save to DB via PHP bridge in batches
-      await saveEventsToDb(activeEvents, true);
+      const freed = await saveEventsToDb(activeEvents, true);
       if (inactiveEvents.length > 0) {
         await saveEventsToDb(inactiveEvents, false);
       }
@@ -205,6 +218,18 @@ async function runTournamentInfoTask() {
       const newlyActive = forceNotify ? activeEvents : activeEvents.filter(e => !previousKnownSet.has(`${e.id}:${e.date_id}`));
 
       const webhookUrl = process.env[cat.webhookEnv];
+
+      /* 🚨 「満席が解けた」= キャンセルで空いた枠。一覧には載ったままなので newlyActive には出ない。
+         受け口が前の値と見比べて教えてくれる（公式への取得は増えない）。 */
+      if (freed.length > 0) {
+        if (shouldStaySilent) {
+          logger.info(`Category [${cat.label}]: 満席が解けた ${freed.length} 件は、復帰直後なので知らせません`);
+        } else {
+          logger.info(`Category [${cat.label}]: 満席が解けた大会 ${freed.length} 件。知らせます`);
+          await sendEventNotifications(webhookUrl, cat.label, `🔔 **【${cat.label}】満席だった大会に空きが出ました！**`, freed);
+        }
+      }
+
       if (newlyActive.length > 0) {
         if (shouldStaySilent) {
           logger.info(`Category [${cat.label}]: Muted ${newlyActive.length} notifications due to silent recovery mode.`);

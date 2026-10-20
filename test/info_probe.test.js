@@ -43,7 +43,16 @@ stub('../src/browser', {
    2026-09-28 に実際に取り違えて「総数が持ち越せていない」と誤診した（計器の出力を本番と読んだ）。
    → 計器の中の本体ログは黙らせる（失敗は assert が出す）。 */
 stub('../src/logger', { info() {}, warn() {}, error() {}, debug() {} });
-stub('../src/db', { async postApiSync() { return {}; }, getPool: () => null, closePool: async () => {} });
+let freedToReturn = [];   /* 受け口が「満席が解けた」と答える分 */
+stub('../src/db', {
+  async postApiSync(action, payload) {
+    if (action === 'info' && payload.is_active && freedToReturn.length) {
+      const out = freedToReturn; freedToReturn = []; return { freed: out };
+    }
+    return {};
+  },
+  getPool: () => null, closePool: async () => {}
+});
 stub('../src/discord', { async sendEventNotifications(_u, label, _h, events) { notified.push({ label, n: events.length }); } });
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'info-probe-'));
@@ -75,41 +84,54 @@ const check = (label, fn) => { try { fn(); console.log('✅ ' + label); } catch 
 
   reset();
   await runTournamentInfoTask();                 /* 2回目: 何も動いていない */
-  check('2回目は総数だけ（全件に行かない）', () => {
-    assert.strictEqual(pages.length, 0, `全件ページを ${pages.length} 回取っている`);
-    assert.strictEqual(probes.length, 4, `総数の問い合わせが ${probes.length} 回（2カテゴリ×受付中/終了 = 4 のはず）`);
-  });
+  check('その他大会は総数だけ（全件に行かない）', () =>
+    assert.ok(!pages.some((p) => p.startsWith('3:7')), `その他大会の全件を取っている: ${pages}`));
+  /* ⚠ シティリーグだけは毎回まるごと見る。受付中の一覧に満席の大会が居座るので、
+     総数だけ見ていると「満席が解けた」に気づけないため（2026-10-20）。 */
+  check('シティリーグは動いていなくても毎回見る', () =>
+    assert.ok(probes.includes('3:2:true'), 'シティリーグの受付中を取りに行っていない'));
+  check('シティリーグの総数問い合わせ（受付終了側）はしない', () =>
+    assert.ok(!probes.includes('3:2:false'), '要らない問い合わせをしている'));
   check('動いていないので通知もしない', () => assert.strictEqual(notified.length, 0));
 
   reset();
-  counts['3:2'].t += 1;                          /* シティリーグに1件 空きが出た */
+  counts['3:7'].t += 1;                          /* その他大会に1件 増えた */
   await runTournamentInfoTask();
-  check('空きが出たら全件を取りに行く', () => assert.ok(pages.some((p) => p.startsWith('3:2:true')), '受付中の2ページ目以降を取っていない'));
-  check('空きが出たら通知する', () => assert.ok(notified.some((x) => x.label === 'シティリーグ' && x.n > 0), JSON.stringify(notified)));
-  check('動いていない方（その他大会）は全件に行かない', () =>
-    assert.ok(!pages.some((p) => p.startsWith('3:7')), 'その他大会まで全件取っている'));
+  check('その他大会は総数が動いたら全件を取りに行く', () =>
+    assert.ok(pages.some((p) => p.startsWith('3:7:true')), '受付中の2ページ目以降を取っていない'));
+  check('その他大会は総数が動いたら通知する', () =>
+    assert.ok(notified.some((x) => x.label === 'その他大会' && x.n > 0), JSON.stringify(notified)));
+
+  /* ── 満席が解けた（キャンセルで空いた）──────────────────────
+     一覧には載ったままなので「新しく現れた」では拾えない。
+     受け口が前の値と見比べて教えてくれる分を、ちゃんと通知に回すか。 */
+  reset();
+  freedToReturn = [{ id: 1246, date_id: 999001, shop_name: 'テスト店', prefecture_name: '東京都', event_date: '11/15' }];
+  await runTournamentInfoTask();
+  check('満席が解けたら通知する', () =>
+    assert.ok(notified.some((x) => x.label === 'シティリーグ' && x.n === 1), JSON.stringify(notified)));
 
   /* ── 重なったときに同じ通知を2回出さない ─────────────────
      3分おきになったので、全件を見ている最中に次の回が始まりうる。
      「いま見ている」印を state に残して、次の回は譲る。 */
   reset();
-  counts['3:2'].t += 1;                          /* また空きが出た */
+  counts['3:7'].t += 1;                          /* また増えた */
   const st = JSON.parse(fs.readFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, 'utf8'));
-  st.city_league.scan_started_at = Math.floor(Date.now() / 1000);   /* 別の回が見ている最中 */
+  st.other_events.scan_started_at = Math.floor(Date.now() / 1000);   /* 別の回が見ている最中 */
   fs.writeFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, JSON.stringify(st));
   await runTournamentInfoTask();
   check('別の回が全件を見ている最中は譲る（通知を二重に出さない）', () => {
-    assert.ok(!pages.some((p) => p.startsWith('3:2:true')), '譲らずに全件を取っている');
-    assert.ok(!notified.some((x) => x.label === 'シティリーグ'), '二重に通知している');
+    assert.ok(!pages.some((p) => p.startsWith('3:7:true')), '譲らずに全件を取っている');
+    assert.ok(!notified.some((x) => x.label === 'その他大会'), '二重に通知している');
   });
 
   reset();
   const st2 = JSON.parse(fs.readFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, 'utf8'));
-  st2.city_league.scan_started_at = Math.floor(Date.now() / 1000) - 3600;   /* 1時間前＝前の回は落ちた */
+  st2.other_events.scan_started_at = Math.floor(Date.now() / 1000) - 3600;   /* 1時間前＝前の回は落ちた */
   fs.writeFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, JSON.stringify(st2));
   await runTournamentInfoTask();
   check('印が古ければやり直す（前の回が落ちても止まらない）', () =>
-    assert.ok(pages.some((p) => p.startsWith('3:2:true')), '古い印に引っかかって永久に見に行かない'));
+    assert.ok(pages.some((p) => p.startsWith('3:7:true')), '古い印に引っかかって永久に見に行かない'));
 
   fs.rmSync(tmp, { recursive: true, force: true });
   if (ng) { console.error(`\n❌ ${ng} 件。`); process.exit(1); }
