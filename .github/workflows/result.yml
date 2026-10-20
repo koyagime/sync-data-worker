@@ -40,6 +40,10 @@ jobs:
       - name: Install Dependencies
         run: npm ci || npm install
 
+      # 通信しない計器。アプリへの通知（空き枠・結果）の渡し方。
+      - name: 計器（アプリへの通知の渡し方・通信なし）
+        run: node test/app_push.test.js
+
       - name: Install Playwright Browsers & System Dependencies
         run: npx playwright install chromium --with-deps
 
@@ -47,6 +51,7 @@ jobs:
         env:
           API_SYNC_URL: ${{ secrets.API_SYNC_URL }}
           API_KEY: ${{ secrets.API_KEY }}
+          PUSH_NOTIFY_KEY: ${{ secrets.PUSH_NOTIFY_KEY }}
           HEADLESS: 'true'
         run: npm run result
 

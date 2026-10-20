@@ -15,7 +15,7 @@ const assert = require('assert');
 require.cache[require.resolve(path.join(__dirname, '../src/logger'))] = {
   exports: { info() {}, warn() {}, error() {} },
 };
-const { notifyApp } = require('../src/app_push');
+const { notifyApp, notifyResults } = require('../src/app_push');
 
 (async () => {
   const ev = (i) => ({ date_id: i, prefecture_name: '東京都', shop_name: `店${i}`, event_date_params: '20261103', extra: 'x' });
@@ -63,4 +63,17 @@ const { notifyApp } = require('../src/app_push');
   });
   assert.strictEqual(got.length, 1);
   console.log('✅ date_id の無い行は渡さない');
+  /* 結果の通知: 鍵なしで投げない・形をそろえる・player_id の無い行は渡さない */
+  let rc = 0;
+  await notifyResults([{ player_id: '1', rank: 5, point: 25, tournament_day: '20261020' }], { env: {}, post: async () => { rc++; return {}; } });
+  assert.strictEqual(rc, 0, '結果: 鍵が無いのに投げた');
+  const rb = [];
+  await notifyResults([{ player_id: '0000566265', event_holding_id: 9, rank: '5', point: '25', tournament_day: '20261020' }, { rank: 1 }], {
+    env: { PUSH_NOTIFY_KEY: 'k' }, post: async (u, b) => { rb.push(b); return { sent: 1 }; },
+  });
+  assert.strictEqual(rb[0].kind, 'result');
+  assert.strictEqual(rb[0].events.length, 1, 'player_id の無い行を渡した');
+  assert.strictEqual(rb[0].events[0].tournament_day, '2026-10-20');
+  assert.strictEqual(rb[0].events[0].rank, 5);
+  console.log('✅ 結果の通知: 鍵が無ければ投げない・日付と数をそろえる・IDの無い行は渡さない');
 })().catch((e) => { console.error('❌', e.message); process.exit(1); });

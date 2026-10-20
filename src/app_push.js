@@ -62,4 +62,34 @@ async function notifyApp(kind, events, deps = {}) {
   return { sent, targets };
 }
 
-module.exports = { notifyApp, sqlDate };
+/**
+ * 大会結果が新しく入ったら、そのプレイヤーIDを登録したアプリに知らせる（2026-10-20）。
+ * 誰に送るか・古い結果を鳴らさない判断はポケミミ側（push-notify.php の result）。
+ * @param {Array<{player_id, event_holding_id, rank, point, tournament_day}>} rows
+ */
+async function notifyResults(rows, deps = {}) {
+  const env = deps.env || process.env;
+  const key = env.PUSH_NOTIFY_KEY || '';
+  if (!key) return { skipped: 'no_key', sent: 0, targets: 0 };
+  const list = (rows || []).filter((r) => r && r.player_id).map((r) => ({
+    player_id: String(r.player_id), event_holding_id: r.event_holding_id,
+    rank: Number(r.rank) || 0, point: Number(r.point) || 0, tournament_day: sqlDate(r.tournament_day),
+  }));
+  if (list.length === 0) return { sent: 0, targets: 0 };
+  const post = deps.post || ((url, body) => axios.post(url, body, { timeout: 20000 }).then((r) => r.data));
+  const url = env.PUSH_NOTIFY_URL || DEFAULT_URL;
+  let sent = 0, targets = 0;
+  for (let i = 0; i < list.length; i += 200) {
+    try {
+      const r = await post(url, { key, kind: 'result', events: list.slice(i, i + 200) });
+      sent += Number(r && r.sent) || 0; targets += Number(r && r.targets) || 0;
+    } catch (err) {
+      const code = err && err.response ? err.response.status : '';
+      logger.warn(`アプリへの結果通知に失敗（${code || err.message}）。取り込みには影響しません`);
+    }
+  }
+  logger.info(`アプリへの結果通知: 新しい結果 ${list.length} 件 → 端末 ${sent} 通`);
+  return { sent, targets };
+}
+
+module.exports = { notifyApp, notifyResults, sqlDate };

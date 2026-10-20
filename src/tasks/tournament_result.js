@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { fetchJsonInBrowser, fetchHtmlInBrowser } = require('../browser');
 const { postApiSync, fetchBacklog } = require('../db');
+const { notifyResults } = require('../app_push');
 
 /* 1回の実行で取り残しを何件ぶん追いかけるか。
    多すぎると1回が長くなり、少なすぎると行列が減らない。 */
@@ -298,6 +299,7 @@ async function runTournamentResultTask() {
   const BATCH_SIZE = 100;
   let totalPlayersSaved = 0;
   let totalDecksSaved = 0;
+  const newResults = [];
 
   for (let i = 0; i < Math.max(allPlayersToSave.length, decksToSave.length); i += BATCH_SIZE) {
     const playerBatch = allPlayersToSave.slice(i, i + BATCH_SIZE);
@@ -310,7 +312,12 @@ async function runTournamentResultTask() {
       });
       totalPlayersSaved += (res.players_saved || 0);
       totalDecksSaved += (res.decks_saved || 0);
+      /* 新しく入った結果だけ受け口が返す（2026-10-20）。プレイヤーIDを登録したアプリに「結果が出ました」 */
+      if (res && Array.isArray(res.new_results)) newResults.push(...res.new_results);
     }
+  }
+  if (newResults.length > 0) {
+    await notifyResults(newResults);
   }
 
   logger.info(`Saved ${totalPlayersSaved} players and ${totalDecksSaved} decks to DB.`);
