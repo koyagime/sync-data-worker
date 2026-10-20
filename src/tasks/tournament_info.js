@@ -170,17 +170,27 @@ async function runTournamentInfoTask() {
       }
 
       /* シティリーグは毎回まるごと見る（上の scanAlways の理由）。総数は聞かない */
+      /* シティリーグは毎回まるごと見る（上の scanAlways の理由）。総数は聞かない */
+      let probe = null;
       if (!cat.scanAlways) {
-      /* まず総数だけ聞く。動いていなければここで終わり（1カテゴリ2リクエスト） */
-      const probe = await probeCounts(cat);
-      const verdict = decideFullScan(catState.counts || null, probe, nowSec - (catState.last_full_scan || 0), forceNotify);
-      if (!verdict.need) {
-        catState.counts = probe;
-        logger.info(`Category [${cat.label}]: 変化なし（${verdict.why}）。全件は見ません`);
-        state[catKey] = catState;
-        saveState(state);
-        continue;
+        /* まず総数だけ聞く。動いていなければここで終わり（1カテゴリ2リクエスト） */
+        probe = await probeCounts(cat);
+        const verdict = decideFullScan(catState.counts || null, probe, nowSec - (catState.last_full_scan || 0), forceNotify);
+        if (!verdict.need) {
+          catState.counts = probe;
+          logger.info(`Category [${cat.label}]: 変化なし（${verdict.why}）。全件は見ません`);
+          state[catKey] = catState;
+          saveState(state);
+          continue;
+        }
+        logger.info(`Category [${cat.label}]: 全件を見ます — ${verdict.why}`);
+      } else {
+        logger.info(`Category [${cat.label}]: 毎回まるごと見ます（満席が解けたのを拾うため）`);
       }
+
+      /* ⚠ 二重に通知しないための印は **どちらの道でも**要る。
+         2026-10-20: scanAlways の道だけ印を見ていなかった＝シティリーグが重なると
+         同じ空き枠を2回知らせる形になっていた（計器で捕まえた）。 */
       const lockAge = nowSec - (catState.scan_started_at || 0);
       if (catState.scan_started_at && lockAge < SCAN_LOCK_SECONDS) {
         /* ⚠ ここで counts を**書き換えない**。書き換えると「変わった」が消えて、
@@ -188,13 +198,10 @@ async function runTournamentInfoTask() {
         logger.info(`Category [${cat.label}]: 別の回が全件を見ています（${lockAge}秒前に開始）。譲ります`);
         continue;
       }
-
-      logger.info(`Category [${cat.label}]: 全件を見ます — ${verdict.why}`);
-      catState.counts = probe;
+      if (probe) catState.counts = probe;
       catState.scan_started_at = nowSec;          /* 先に印を置く（保存してから見に行く） */
       state[catKey] = catState;
       saveState(state);
-      }
 
       const activeEvents = await fetchCategoryEvents(cat, 'true');
       logger.info(`Category [${cat.label}]: Fetched ${activeEvents.length} active events.`);

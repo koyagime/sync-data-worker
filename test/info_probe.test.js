@@ -133,6 +133,19 @@ const check = (label, fn) => { try { fn(); console.log('✅ ' + label); } catch 
   check('印が古ければやり直す（前の回が落ちても止まらない）', () =>
     assert.ok(pages.some((p) => p.startsWith('3:7:true')), '古い印に引っかかって永久に見に行かない'));
 
+  /* シティリーグ（毎回まるごと見る側）でも、重なったら譲るか */
+  reset();
+  const st3 = JSON.parse(fs.readFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, 'utf8'));
+  st3.city_league.scan_started_at = Math.floor(Date.now() / 1000);
+  fs.writeFileSync(process.env.TOURNAMENT_INFO_STATE_FILE, JSON.stringify(st3));
+  freedToReturn = [{ id: 1246, date_id: 999002, shop_name: 'テスト店2', prefecture_name: '東京都', event_date: '11/16' }];
+  await runTournamentInfoTask();
+  check('シティリーグも、別の回が見ている最中は譲る', () => {
+    assert.ok(!pages.some((p) => p.startsWith('3:2')), '譲らずに取りに行っている');
+    assert.ok(!notified.some((x) => x.label === 'シティリーグ'), '二重に通知している');
+  });
+  freedToReturn = [];
+
   fs.rmSync(tmp, { recursive: true, force: true });
   if (ng) { console.error(`\n❌ ${ng} 件。`); process.exit(1); }
   console.log('\n✅ 総数が動いたときだけ全件を見に行き、動いた側だけ通知する');
