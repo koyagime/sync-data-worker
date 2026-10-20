@@ -13,7 +13,7 @@
       "f": 246
     },
     "last_full_scan": 1792478030,
-    "scan_started_at": 1792480014
+    "scan_started_at": 1792480372
   },
   "other_events": {
     "last_inactive_fetch": 1792476957,
@@ -132,10 +132,10 @@
     ],
     "last_success": 1792476957,
     "counts": {
-      "t": 110,
+      "t": 111,
       "f": 240
     },
     "last_full_scan": 1792476957,
-    "scan_started_at": 1792480193
+    "scan_started_at": 0
   }
 }
