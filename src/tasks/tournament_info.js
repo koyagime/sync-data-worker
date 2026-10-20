@@ -3,6 +3,7 @@ const path = require('path');
 const { fetchJsonInBrowser } = require('../browser');
 const { postApiSync, getPool } = require('../db');
 const { sendEventNotifications } = require('../discord');
+const { notifyApp } = require('../app_push');
 const logger = require('../logger');
 
 const STATE_FILE = process.env.TOURNAMENT_INFO_STATE_FILE
@@ -234,6 +235,8 @@ async function runTournamentInfoTask() {
         } else {
           logger.info(`Category [${cat.label}]: 満席が解けた大会 ${freed.length} 件。知らせます`);
           await sendEventNotifications(webhookUrl, cat.label, `🔔 **【${cat.label}】満席だった大会に空きが出ました！**`, freed);
+          /* アプリへはシティリーグだけ（その他大会は数が多く、鳴りすぎる） */
+          if (catKey === 'city_league') await notifyApp('city_freed', freed);
         }
       }
 
@@ -243,6 +246,8 @@ async function runTournamentInfoTask() {
         } else {
           logger.info(`Category [${cat.label}]: Found ${newlyActive.length} newly active events. Sending notifications to regional Webhooks...`);
           await sendEventNotifications(webhookUrl, cat.label, cat.headerMessage, newlyActive);
+          /* ⚠ FORCE_NOTIFY（全件を流し直す）のときはアプリに送らない。端末に何十通も届く */
+          if (catKey === 'city_league' && !forceNotify) await notifyApp('city_new', newlyActive);
         }
       }
 

@@ -41,6 +41,10 @@ jobs:
       - name: 計器（総数だけ聞く仕組み・通信なし）
         run: node test/info_probe.test.js
 
+      # 通信しない計器。鍵が無いときに投げない・落ちても止めない・日付の形をそろえる。
+      - name: 計器（アプリへの通知の渡し方・通信なし）
+        run: node test/app_push.test.js
+
       - name: Install Playwright Browsers & System Dependencies
         run: npx playwright install chromium --with-deps
 
@@ -50,6 +54,7 @@ jobs:
           API_KEY: ${{ secrets.API_KEY }}
           DISCORD_CITY_WEBHOOK: ${{ secrets.DISCORD_CITY_WEBHOOK }}
           DISCORD_OTHER_WEBHOOK: ${{ secrets.DISCORD_OTHER_WEBHOOK }}
+          PUSH_NOTIFY_KEY: ${{ secrets.PUSH_NOTIFY_KEY }}
           DISCORD_WEBHOOK_KANTO: ${{ secrets.DISCORD_WEBHOOK_KANTO }}
           DISCORD_WEBHOOK_KANSAI: ${{ secrets.DISCORD_WEBHOOK_KANSAI }}
           DISCORD_WEBHOOK_CHUBU: ${{ secrets.DISCORD_WEBHOOK_CHUBU }}
