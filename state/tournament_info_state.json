@@ -129,12 +129,12 @@
       "1208:1942703",
       "1208:1941990"
     ],
-    "last_success": 1792464707,
+    "last_success": 1792466507,
     "counts": {
       "t": 110,
       "f": 240
     },
-    "last_full_scan": 1792464707,
+    "last_full_scan": 1792466507,
     "scan_started_at": 0
   }
 }
