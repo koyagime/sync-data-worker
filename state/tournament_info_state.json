@@ -3,18 +3,17 @@
     "last_inactive_fetch": 1792567509,
     "known_ids": [
       "1246:1941293",
-      "1246:1940591",
       "1246:1940425",
       "1246:1941659",
       "1246:1940390",
       "1246:1941309"
     ],
-    "last_success": 1792579731,
+    "last_success": 1792579911,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1792579731,
+    "last_full_scan": 1792579911,
     "scan_started_at": 0
   },
   "other_events": {
