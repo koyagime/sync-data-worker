@@ -42,6 +42,7 @@ async function runPlayerRankTask() {
   logger.info('--- Starting Player Rank Import Task ---');
   const state = loadState();
   const failures = [];
+  let upstreamFailures = 0;   /* 公式サイト側（関門・403・メンテナンス）で落ちたリーグの数 */
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   for (const [league, label] of Object.entries(LEAGUES)) {
@@ -172,6 +173,7 @@ async function runPlayerRankTask() {
 
     } catch (err) {
       failures.push(`${label}(${league}): ${err.message}`);
+      if (err && err.pmUpstream) upstreamFailures++;
       logger.error(`Error processing player rank for ${label} (${league}):`, err.message);
     }
   }
@@ -182,6 +184,9 @@ async function runPlayerRankTask() {
   if (failures.length >= Object.keys(LEAGUES).length) {
     const e = new Error(`全リーグで取り込みに失敗しました: ${failures.join(' / ')}`);
     logger.error(e.message);
+    /* 2026-10-22: 全部が公式サイト側の失敗（公式のメンテナンス・関門）なら、こちらの不具合ではない。
+       「次の回で拾い直す」側に回し、続いたときだけ index.js の数取り器が知らせる（毎回メールにしない） */
+    if (upstreamFailures === failures.length) { e.pmTransient = true; e.pmUpstream = true; }
     throw e;
   }
 

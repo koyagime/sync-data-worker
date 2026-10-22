@@ -15,6 +15,7 @@ const path = require('path');
    state/ は各ワークフローが毎回コミットして持ち回っている。 */
 const HEALTH_FILE = path.join(__dirname, '../state/upstream_health.json');
 const MAX_CONSECUTIVE_FAILURES = 6;   /* 毎時なら約6時間ぶん */
+const ALERT_EVERY_MS = 24 * 60 * 60 * 1000;   /* しきい値の後に知らせ直す間隔 */
 
 function loadHealth() {
   try {
@@ -45,9 +46,21 @@ function noteUpstreamFailure(task, reason) {
     last_failure_at: new Date().toISOString(),
     last_reason: String(reason || '').slice(0, 300)
   };
+  /* 🚩 2026-10-22: しきい値を超えた後は**毎回**落ちていて、15分おきにメールが飛んだ（公式のメンテナンス中・1日に数十通）。
+     知らせるのは「しきい値に達した回」と、その後は1日1回だけ。直れば noteUpstreamOk で数え直す。 */
+  let alert = false;
+  if (n >= MAX_CONSECUTIVE_FAILURES) {
+    const last = cur.last_alert_at ? Date.parse(cur.last_alert_at) : 0;
+    if (n === MAX_CONSECUTIVE_FAILURES || !last || Date.now() - last >= ALERT_EVERY_MS) {
+      alert = true;
+      health[key].last_alert_at = new Date().toISOString();
+    } else {
+      health[key].last_alert_at = cur.last_alert_at;
+    }
+  }
   saveHealth(health);
-  logger.warn(`公式サイト側の失敗 ${n} 回目（連続）。${MAX_CONSECUTIVE_FAILURES} 回続いたら落とします`);
-  return n >= MAX_CONSECUTIVE_FAILURES;
+  logger.warn(`公式サイト側の失敗 ${n} 回目（連続）。${MAX_CONSECUTIVE_FAILURES} 回目と、その後は1日1回だけ知らせます`);
+  return alert;
 }
 
 function noteUpstreamOk(task) {
