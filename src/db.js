@@ -57,6 +57,17 @@ function isTransient(err) {
  *   Secrets には API_KEY / API_SYNC_URL が登録済みなので、フォールバックは不要。
  *   無ければ **黙って既定で動かず、その場で止める**（間違った鍵で走ると 403 が延々出るだけ）。
  */
+/**
+ * 受け口へ送る JSON を、サーバーの門番（ロリポップの WAF）に弾かれにくい形にする（2026-10-23）。
+ * ⚠ ランキングのマスター 241〜300ページの塊が毎回 403（WAF の画面）で弾かれ、10/20 から先へ進めなかった。
+ *   選手の名前に入る記号（< > ' ; ( ) * | ` &）が、攻撃の文字列に見えたと考えられる。
+ * → これらを JSON の \uXXXX の形にする。PHP の json_decode で元の文字に戻るので、中身は変わらない。
+ *   ⚠ どれも JSON の文字列の中にしか出ない記号（数や区切りには使われない）なので、形を壊さない。
+ */
+function wafSafeJson(obj) {
+  return JSON.stringify(obj).replace(/[<>'&;()*|`]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+}
+
 async function postApiSync(action, payload) {
   const syncUrl = process.env.API_SYNC_URL;
   const apiKey = process.env.API_KEY;
@@ -73,7 +84,7 @@ async function postApiSync(action, payload) {
   let lastErr = null;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {
-      const res = await axios.post(syncUrl, { action, api_key: apiKey, ...payload }, {
+      const res = await axios.post(syncUrl, wafSafeJson({ action, api_key: apiKey, ...payload }), {
         headers: {
           'Content-Type': 'application/json',
           'X-Api-Key': apiKey
@@ -140,6 +151,7 @@ async function closePool() {
 module.exports = {
   getPool,
   postApiSync,
+  wafSafeJson,
   fetchBacklog,
   closePool
 };

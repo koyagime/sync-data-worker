@@ -61,7 +61,10 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add state/
+          # ⚠ 自分の state だけ（2026-10-23）。state/ を丸ごと書き戻すと、ほかの仕事の進み具合を古い写しで上書きしていた
+          #   （ランキングの読み進めが 10/20 の位置へ何度も戻り、上位の更新が止まっていた）
+          OWN="state/player_rank_state.json state/upstream_health_rank.json"
+          for f in $OWN; do [ -f "$f" ] && git add "$f"; done
           # 🚨 2026-09-28: ここは以前 `git diff --quiet && git diff --staged --quiet` だった。
           #    前半は **作業ツリー全体**の未ステージ変更を見るので、毎回書き換わる
           #    `logs/tcg_runner.log` のせいで **常に成立しない** → 早じまいできず、
@@ -74,15 +77,14 @@ jobs:
           # ⚠ state は毎回まるごと作り直すファイル。別の実行と衝突すると rebase では解決できない
           #    （同じ JSON を両方が書き換えるため必ず CONFLICT になる。2026-08-07 に実際に踏んだ）。
           #    → 取り込んでから **今回作った state を上書きし直す**。衝突しようがない形にする。
-          KEEP=$(mktemp -d); cp -R state/. "$KEEP"/
+          KEEP=$(mktemp -d); for f in $OWN; do [ -f "$f" ] && cp "$f" "$KEEP"/; done
           git commit -m "Auto-update player rank state tracking [skip ci]"
           for i in 1 2 3 4 5; do
             git push && exit 0
             echo "push が弾かれた（$i 回目）。取り込んで作り直した state を載せ直す"
             git fetch origin "${{ github.ref_name }}" || exit 1
             git reset --hard "origin/${{ github.ref_name }}" || exit 1
-            rm -rf state && mkdir -p state && cp -R "$KEEP"/. state/
-            git add state/
+            mkdir -p state; for f in $OWN; do [ -f "$KEEP/$(basename "$f")" ] && cp "$KEEP/$(basename "$f")" "$f" && git add "$f"; done
             if git diff --staged --quiet; then echo "取り込んだら差分なし（別の実行が同じ内容を入れた）"; exit 0; fi
             git commit -m "Auto-update player rank state tracking [skip ci]"
             sleep $((i * 3))

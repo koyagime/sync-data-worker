@@ -40,7 +40,7 @@ function slim(e) {
  */
 async function notifyApp(kind, events, deps = {}) {
   const env = deps.env || process.env;
-  const key = env.PUSH_NOTIFY_KEY || '';
+  const key = String(env.PUSH_NOTIFY_KEY || '').trim();   /* ⚠ 合言葉の前後の改行・空白で 403 になっていた（2026-10-21〜23・Secrets に控えのファイルの改行ごと入った疑い） */
   if (!key) return { skipped: 'no_key', sent: 0, targets: 0 };
   const list = (events || []).filter((e) => e && e.date_id != null).map(slim);
   if (list.length === 0) return { sent: 0, targets: 0 };
@@ -69,7 +69,7 @@ async function notifyApp(kind, events, deps = {}) {
  */
 async function notifyResults(rows, deps = {}) {
   const env = deps.env || process.env;
-  const key = env.PUSH_NOTIFY_KEY || '';
+  const key = String(env.PUSH_NOTIFY_KEY || '').trim();   /* ⚠ 合言葉の前後の改行・空白で 403 になっていた（2026-10-21〜23・Secrets に控えのファイルの改行ごと入った疑い） */
   if (!key) return { skipped: 'no_key', sent: 0, targets: 0 };
   const list = (rows || []).filter((r) => r && r.player_id).map((r) => ({
     player_id: String(r.player_id), event_holding_id: r.event_holding_id,

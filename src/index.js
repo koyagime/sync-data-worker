@@ -13,11 +13,13 @@ const path = require('path');
    ただし**自力で治っていない**なら気づかないといけないので、
    連続で失敗した回数を state に書き、続いたらそこで落としてメールを出す。
    state/ は各ワークフローが毎回コミットして持ち回っている。 */
-const HEALTH_FILE = path.join(__dirname, '../state/upstream_health.json');
+/* ⚠ 仕事ごとに別のファイル（2026-10-23）。1つのファイルを3つの仕事が書き戻し合い、互いの数を古い値に戻していた */
+const healthFile = (task) => path.join(__dirname, `../state/upstream_health_${task || 'all'}.json`);
 const MAX_CONSECUTIVE_FAILURES = 6;   /* 毎時なら約6時間ぶん */
 const ALERT_EVERY_MS = 24 * 60 * 60 * 1000;   /* しきい値の後に知らせ直す間隔 */
 
-function loadHealth() {
+function loadHealth(task) {
+  const HEALTH_FILE = healthFile(task);
   try {
     if (fs.existsSync(HEALTH_FILE)) return JSON.parse(fs.readFileSync(HEALTH_FILE, 'utf8')) || {};
   } catch (e) {
@@ -26,7 +28,8 @@ function loadHealth() {
   return {};
 }
 
-function saveHealth(health) {
+function saveHealth(task, health) {
+  const HEALTH_FILE = healthFile(task);
   try {
     fs.mkdirSync(path.dirname(HEALTH_FILE), { recursive: true });
     fs.writeFileSync(HEALTH_FILE, JSON.stringify(health, null, 2), 'utf8');
@@ -37,7 +40,7 @@ function saveHealth(health) {
 
 /** @returns 連続失敗がしきい値に達したら true（= ここで落としてメールを出す） */
 function noteUpstreamFailure(task, reason) {
-  const health = loadHealth();
+  const health = loadHealth(task);
   const key = task || 'all';
   const cur = health[key] || {};
   const n = (cur.consecutive_failures || 0) + 1;
@@ -58,19 +61,19 @@ function noteUpstreamFailure(task, reason) {
       health[key].last_alert_at = cur.last_alert_at;
     }
   }
-  saveHealth(health);
+  saveHealth(task, health);
   logger.warn(`公式サイト側の失敗 ${n} 回目（連続）。${MAX_CONSECUTIVE_FAILURES} 回目と、その後は1日1回だけ知らせます`);
   return alert;
 }
 
 function noteUpstreamOk(task) {
-  const health = loadHealth();
+  const health = loadHealth(task);
   const key = task || 'all';
   if (health[key] && health[key].consecutive_failures) {
     logger.info(`公式サイト側は復調しました（${health[key].consecutive_failures} 回連続の失敗から回復）`);
   }
   health[key] = { consecutive_failures: 0, last_ok_at: new Date().toISOString() };
-  saveHealth(health);
+  saveHealth(task, health);
 }
 
 async function main() {

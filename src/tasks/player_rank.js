@@ -135,18 +135,33 @@ async function runPlayerRankTask() {
         logger.error(`${label} (${league}) ⚠ 公式の一覧を読み切れませんでした（${verdict.reason}）。掲載中の人はそのまま残します`);
       }
       if (allPlayers.length > 0) {
+        /* 🚩 2026-10-23: 門番（WAF）に 403 で弾かれた塊は、半分ずつに分けて送り直す。1人でも弾かれる人だけ飛ばして記録に残す。
+           以前は1つの塊が弾かれると、その回の残り全部が送れず、次の回も同じ所で止まり続けていた（マスターが 10/20 から 240ページ目で停止） */
+        const rejected = [];
+        const send = async (batch, isEnd) => {
+          try {
+            const res = await postApiSync('rank', { league, players: batch, is_end: isEnd, cycle_started_at: cycleStartedAt });
+            syncResult.affected += (res.affected || 0);
+            syncResult.dropped += (res.dropped || 0);
+          } catch (e) {
+            const code = e && e.response && e.response.status;
+            if (code !== 403) throw e;
+            if (batch.length === 1) {
+              rejected.push(batch[0]);
+              logger.warn(`${label} (${league}) 受け口の門番に弾かれた選手を飛ばします: ID ${batch[0].playerId || batch[0].player_id || '?'} 名前 ${JSON.stringify(batch[0].nickname || batch[0].nickName || '')}`);
+              return;
+            }
+            const half = Math.ceil(batch.length / 2);
+            await send(batch.slice(0, half), false);
+            await send(batch.slice(half), isEnd);
+          }
+        };
         for (let i = 0; i < allPlayers.length; i += BATCH_SIZE) {
           const batch = allPlayers.slice(i, i + BATCH_SIZE);
           const isLastBatch = (i + BATCH_SIZE >= allPlayers.length);
-          const res = await postApiSync('rank', {
-            league,
-            players: batch,
-            is_end: trustEnd && isLastBatch,
-            cycle_started_at: cycleStartedAt
-          });
-          syncResult.affected += (res.affected || 0);
-          syncResult.dropped += (res.dropped || 0);
+          await send(batch, trustEnd && isLastBatch);
         }
+        if (rejected.length) logger.warn(`${label} (${league}) 門番に弾かれて送れなかった選手: ${rejected.length} 人（上の行に ID と名前）`);
       }
 
       if (reachedEnd) {
