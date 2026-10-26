@@ -15,6 +15,20 @@ const logger = require('./logger');
 
 const DEFAULT_URL = 'https://pokemimi.com/api/push-notify.php';
 const BATCH = 50;
+/* ⚠ 名乗り（User-Agent）を必ず付ける（2026-10-26）。axios の既定の名乗り「axios/…」は、ポケミミの .htaccess の
+   スクレイピング対策で**サイトの手前で 403**（HTML のエラーページ）になる。10/20 の開始から1通も届かなかった本当の原因はこれで、
+   「合言葉の不一致」と思い込んで合言葉を2回作り直していた。合言葉が違うときの 403 は JSON の {"error":"forbidden"}。 */
+const UA = 'pokemimi-push/1.0 (sync-data-worker)';
+const postJson = (url, body) => axios.post(url, body, { timeout: 20000, headers: { 'User-Agent': UA } }).then((r) => r.data);
+
+/** 失敗の中身を言葉にする（403 が「合言葉」か「名乗りで弾かれた」かを分ける） */
+function why(err) {
+  const res = err && err.response;
+  if (!res) return err && err.message ? err.message : 'unknown';
+  const ct = String((res.headers && res.headers['content-type']) || '');
+  if (res.status === 403) return ct.includes('json') ? '403・合言葉が違う' : '403・サイトの手前で弾かれた（名乗り・WAF）';
+  return String(res.status);
+}
 
 /** 'YYYYMMDD' でも 'YYYY-MM-DD' でも、ポケミミが読む 'YYYY-MM-DD' にそろえる */
 function sqlDate(v) {
@@ -45,7 +59,7 @@ async function notifyApp(kind, events, deps = {}) {
   const list = (events || []).filter((e) => e && e.date_id != null).map(slim);
   if (list.length === 0) return { sent: 0, targets: 0 };
 
-  const post = deps.post || ((url, body) => axios.post(url, body, { timeout: 20000 }).then((r) => r.data));
+  const post = deps.post || postJson;
   const url = env.PUSH_NOTIFY_URL || DEFAULT_URL;
   let sent = 0, targets = 0;
   for (let i = 0; i < list.length; i += BATCH) {
@@ -54,8 +68,7 @@ async function notifyApp(kind, events, deps = {}) {
       sent += Number(r && r.sent) || 0;
       targets += Number(r && r.targets) || 0;
     } catch (err) {
-      const code = err && err.response ? err.response.status : '';
-      logger.warn(`アプリへの通知に失敗（${kind}・${code || err.message}）。Discord には影響しません`);
+      logger.warn(`アプリへの通知に失敗（${kind}・${why(err)}）。Discord には影響しません`);
     }
   }
   logger.info(`アプリへの通知 ${kind}: 大会 ${list.length} 件 → 端末 ${sent} 通`);
@@ -76,7 +89,7 @@ async function notifyResults(rows, deps = {}) {
     rank: Number(r.rank) || 0, point: Number(r.point) || 0, tournament_day: sqlDate(r.tournament_day),
   }));
   if (list.length === 0) return { sent: 0, targets: 0 };
-  const post = deps.post || ((url, body) => axios.post(url, body, { timeout: 20000 }).then((r) => r.data));
+  const post = deps.post || postJson;
   const url = env.PUSH_NOTIFY_URL || DEFAULT_URL;
   let sent = 0, targets = 0;
   for (let i = 0; i < list.length; i += 200) {
@@ -84,12 +97,11 @@ async function notifyResults(rows, deps = {}) {
       const r = await post(url, { key, kind: 'result', events: list.slice(i, i + 200) });
       sent += Number(r && r.sent) || 0; targets += Number(r && r.targets) || 0;
     } catch (err) {
-      const code = err && err.response ? err.response.status : '';
-      logger.warn(`アプリへの結果通知に失敗（${code || err.message}）。取り込みには影響しません`);
+      logger.warn(`アプリへの結果通知に失敗（${why(err)}）。取り込みには影響しません`);
     }
   }
   logger.info(`アプリへの結果通知: 新しい結果 ${list.length} 件 → 端末 ${sent} 通`);
   return { sent, targets };
 }
 
-module.exports = { notifyApp, notifyResults, sqlDate };
+module.exports = { notifyApp, notifyResults, sqlDate, UA, why };
