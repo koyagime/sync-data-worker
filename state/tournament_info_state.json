@@ -705,12 +705,12 @@
       "1322:2003960",
       "1322:2004068"
     ],
-    "last_success": 1793359511,
+    "last_success": 1793359675,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1793359511,
+    "last_full_scan": 1793359675,
     "scan_started_at": 0
   },
   "other_events": {
@@ -740,12 +740,12 @@
       "1208:1942703",
       "1208:1941990"
     ],
-    "last_success": 1793357864,
+    "last_success": 1793359675,
     "counts": {
       "t": 23,
       "f": 45
     },
-    "last_full_scan": 1793357864,
+    "last_full_scan": 1793359675,
     "scan_started_at": 0
   }
 }
