@@ -7,19 +7,18 @@
       "1246:1941027",
       "1246:1941309"
     ],
-    "last_success": 1793332492,
+    "last_success": 1793332671,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1793332492,
+    "last_full_scan": 1793332671,
     "scan_started_at": 0
   },
   "other_events": {
     "last_inactive_fetch": 1793316841,
     "known_ids": [
       "1208:1942270",
-      "1208:1942579",
       "1208:1942641",
       "1208:1941988",
       "1208:1942553",
@@ -39,12 +38,12 @@
       "1208:1942703",
       "1208:1941990"
     ],
-    "last_success": 1793332300,
+    "last_success": 1793332671,
     "counts": {
-      "t": 20,
+      "t": 19,
       "f": 45
     },
-    "last_full_scan": 1793332300,
+    "last_full_scan": 1793332671,
     "scan_started_at": 0
   }
 }
