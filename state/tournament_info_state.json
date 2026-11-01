@@ -708,23 +708,23 @@
       "1322:2003960",
       "1322:2004068"
     ],
-    "last_success": 1793550106,
+    "last_success": 1793550669,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1793550106,
-    "scan_started_at": 1793550289
+    "last_full_scan": 1793550669,
+    "scan_started_at": 0
   },
   "other_events": {
     "last_inactive_fetch": 1793522211,
     "known_ids": [],
-    "last_success": 1793548490,
+    "last_success": 1793550669,
     "counts": {
       "t": 0,
       "f": 0
     },
-    "last_full_scan": 1793548490,
+    "last_full_scan": 1793550669,
     "scan_started_at": 0
   }
 }
