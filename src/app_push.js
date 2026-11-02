@@ -47,7 +47,7 @@ function slim(e) {
 }
 
 /**
- * @param {'city_new'|'city_freed'} kind
+ * @param {'city_new'|'city_freed'|'other_new'|'other_freed'} kind
  * @param {Array} events
  * @param {{post?: Function, env?: object}} [deps] 試験で差し替える口
  * @returns {Promise<{skipped?: string, sent: number, targets: number}>}
