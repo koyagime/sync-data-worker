@@ -302,7 +302,6 @@
       "1322:2004688",
       "1322:2003968",
       "1322:2004245",
-      "1322:2004245",
       "1322:2004724",
       "1322:2004593",
       "1322:2004489",
@@ -703,23 +702,23 @@
       "1322:2003960",
       "1322:2004068"
     ],
-    "last_success": 1793672059,
+    "last_success": 1793672181,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1793672059,
+    "last_full_scan": 1793672181,
     "scan_started_at": 0
   },
   "other_events": {
     "last_inactive_fetch": 1793643705,
     "known_ids": [],
-    "last_success": 1793672059,
+    "last_success": 1793672181,
     "counts": {
       "t": 0,
       "f": 0
     },
-    "last_full_scan": 1793672059,
+    "last_full_scan": 1793672181,
     "scan_started_at": 0
   }
 }
