@@ -2,7 +2,6 @@
   "city_league": {
     "last_inactive_fetch": 1793881139,
     "known_ids": [
-      "1246:1941268",
       "1246:1940815",
       "1246:1940698",
       "1246:1941675",
@@ -602,6 +601,7 @@
       "1322:2004289",
       "1322:2004749",
       "1322:2004232",
+      "1322:2003886",
       "1322:2004094",
       "1322:2003818",
       "1322:2004732",
@@ -706,23 +706,23 @@
       "1322:2003960",
       "1322:2004068"
     ],
-    "last_success": 1793893368,
+    "last_success": 1793894083,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1793893368,
-    "scan_started_at": 1793893560
+    "last_full_scan": 1793894083,
+    "scan_started_at": 0
   },
   "other_events": {
     "last_inactive_fetch": 1793882776,
     "known_ids": [],
-    "last_success": 1793892111,
+    "last_success": 1793894083,
     "counts": {
       "t": 0,
       "f": 0
     },
-    "last_full_scan": 1793892111,
+    "last_full_scan": 1793894083,
     "scan_started_at": 0
   }
 }
