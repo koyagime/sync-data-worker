@@ -711,12 +711,12 @@
       "1322:2003960",
       "1322:2004068"
     ],
-    "last_success": 1794005146,
+    "last_success": 1794005315,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1794005146,
+    "last_full_scan": 1794005315,
     "scan_started_at": 0
   },
   "other_events": {
