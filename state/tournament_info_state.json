@@ -2,18 +2,18 @@
   "city_league": {
     "last_inactive_fetch": 1794199173,
     "known_ids": [
+      "1246:1941238",
       "1246:1941659",
       "1246:1940390",
-      "1246:1941348",
       "1246:1941027",
       "1246:1941309"
     ],
-    "last_success": 1794211418,
+    "last_success": 1794211604,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1794211418,
+    "last_full_scan": 1794211604,
     "scan_started_at": 0
   },
   "other_events": {
