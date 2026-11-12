@@ -1,23 +1,23 @@
 {
   "master": {
-    "offset": 4800,
+    "offset": 6000,
     "cycle_started_at": "2026-11-11 16:54:56",
-    "cycle_pages": 240,
+    "cycle_pages": 300,
     "last_completed_at": "2026-11-11 08:52:33",
     "last_cycle_total": 15491
   },
   "senior": {
-    "offset": 1200,
-    "cycle_started_at": "2026-11-12 14:41:00",
-    "cycle_pages": 60,
-    "last_completed_at": "2026-11-12 05:52:44",
-    "last_cycle_total": 2133
+    "offset": 0,
+    "cycle_started_at": null,
+    "cycle_pages": 0,
+    "last_completed_at": "2026-11-12 21:44:15",
+    "last_cycle_total": 2138
   },
   "junior": {
-    "offset": 1200,
-    "cycle_started_at": "2026-11-12 14:41:00",
-    "cycle_pages": 60,
-    "last_completed_at": "2026-11-12 05:52:44",
-    "last_cycle_total": 1506
+    "offset": 0,
+    "cycle_started_at": null,
+    "cycle_pages": 0,
+    "last_completed_at": "2026-11-12 21:44:15",
+    "last_cycle_total": 1508
   }
 }
