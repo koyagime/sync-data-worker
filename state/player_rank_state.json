@@ -1,22 +1,22 @@
 {
   "master": {
-    "offset": 10800,
+    "offset": 12000,
     "cycle_started_at": "2026-11-11 16:54:56",
-    "cycle_pages": 540,
+    "cycle_pages": 600,
     "last_completed_at": "2026-11-11 08:52:33",
     "last_cycle_total": 15491
   },
   "senior": {
-    "offset": 0,
-    "cycle_started_at": null,
-    "cycle_pages": 0,
+    "offset": 1200,
+    "cycle_started_at": "2026-11-14 07:21:58",
+    "cycle_pages": 60,
     "last_completed_at": "2026-11-14 00:10:51",
     "last_cycle_total": 2141
   },
   "junior": {
-    "offset": 0,
-    "cycle_started_at": null,
-    "cycle_pages": 0,
+    "offset": 1200,
+    "cycle_started_at": "2026-11-14 07:21:58",
+    "cycle_pages": 60,
     "last_completed_at": "2026-11-14 00:10:51",
     "last_cycle_total": 1509
   }
