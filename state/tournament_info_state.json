@@ -2,12 +2,12 @@
   "city_league": {
     "last_inactive_fetch": 1794777697,
     "known_ids": [],
-    "last_success": 1794792097,
+    "last_success": 1794792275,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1794792097,
+    "last_full_scan": 1794792275,
     "scan_started_at": 0
   },
   "other_events": {
