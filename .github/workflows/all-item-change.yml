@@ -1,0 +1,51 @@
+# カード情報（all_item）の変化の見張り（2026-11-23 新設・ポケミミの md_memory/195_all_item_change_checker.md）
+#
+# なぜ要るか: 運営「日々 all_item のカード効果とか情報は更新される可能性がある。新たな更新があれば対応していけるようにしないと」。
+#   ポケミミの cron/all-item-change.php が、前回の控えと今の all_item を比べ、変わった版・増えた版・消えた版を記録する。
+#   VOLT の取説が古い文から作られている版は「見直しが要る」として、管理画面の「今日の確認」と運営のアプリに出る。
+#
+# 置き場所: ingest-alert.yml と同じ理由で sync-data-worker（合言葉 PUSH_NOTIFY_KEY がここにだけ登録されている）。
+#   ⚠ ロリポップの cron には載せない（登録されていない口がある・記憶 pokemimi_cron_only_note）。
+#
+# 1日2回呼ぶが、ポケミミ側は「前にちゃんと比べてから20時間たっていなければ何もしない」。
+#   GitHub の schedule は時々飛ばす（ランクは毎時の指定で6〜8時間おき）ので、2回呼んで実質1日1回にしている。
+#
+# 赤くなるのは「呼べなかった」「失敗した」ときだけ。見直しが要るのは赤ではない（知らせで届く）。
+#   「疑わしい」（消えた版・文の変化が多すぎる＝取り込みの途中か書き方が丸ごと変わった疑い）は黄色の警告。係が確かめて受け入れる。
+name: カード情報の変化の見張り
+on:
+  schedule:
+    - cron: '40 19,7 * * *'   # 毎日 4:40 と 16:40（日本時間）
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 前の日の控えと比べる（変わった版を記録し、見直しが要るものを知らせる）
+        env:
+          KEY: ${{ secrets.PUSH_NOTIFY_KEY }}
+        run: |
+          set -u
+          UA='Mozilla/5.0 (compatible; pokemimi-cron/1.0)'
+          code=$(curl -sS --max-time 170 --retry 1 --retry-delay 30 -A "$UA" -X POST \
+                 -H "X-Pm-Key: ${KEY}" "https://pokemimi.com/cron/all-item-change.php?cb=${RANDOM}" \
+                 -o r.json -w '%{http_code}') || code=000
+          if [ "$code" != "200" ]; then echo "::error ::見張りを呼べなかった (HTTP $code)"; head -c 300 r.json 2>/dev/null; exit 1; fi
+          python3 - <<'PY'
+          import json, sys
+          r = json.load(open('r.json'))
+          st = r.get('status')
+          names = {'baseline': '最初の控えを作った', 'ok': '比べた', 'suspect': '疑わしい（止めた）', 'failed': '失敗',
+                   'skipped_recent': '前に比べてから20時間たっていない（何もしない）', 'busy': '別の回が動いている'}
+          print('結果:', names.get(st, st), '／', r.get('message', ''))
+          if st in ('ok', 'baseline'):
+              print(f"  読んだ版 {r.get('scanned')}・変わった {r.get('changed')}（文 {r.get('text_changed')}）・増えた {r.get('added')}・消えた {r.get('removed')}")
+              print(f"  新しく見直しが要る {r.get('review_new')}・まだ片づいていない {r.get('review_open')}・知らせ {r.get('push')}・{r.get('seconds')} 秒・{r.get('memory_mb')} MB")
+          if st == 'failed':
+              print('::error ::見張りが失敗しました（管理画面「カード情報の変化」の「回した記録」）'); sys.exit(1)
+          if st == 'suspect':
+              print('::warning ::疑わしいので控えを進めていません: ' + str(r.get('message', '')))
+          if (r.get('review_new') or 0) > 0:
+              print(f"::notice ::取説の見直しが要る版が新しく {r.get('review_new')} 件（管理画面「カード情報の変化」）")
+          PY
