@@ -1,7 +1,6 @@
 {
   "rank": {
-    "consecutive_failures": 1,
-    "last_failure_at": "2026-11-23T07:21:46.826Z",
-    "last_reason": "全リーグで取り込みに失敗しました: マスター(master): Cloudflare の関門を抜けられませんでした (https://players.pokemon-card.com/get_player_ranking?league=master&offset=14420&pageNo=722) / シニア(senior): Cloudflare の関門を抜けられませんでした (https://players.pokemon-card.com/get_player_ranking?league=senior&offset=1200&pageNo=61) / ジュニア(junior): Clo"
+    "consecutive_failures": 0,
+    "last_ok_at": "2026-11-23T19:57:22.083Z"
   }
 }
