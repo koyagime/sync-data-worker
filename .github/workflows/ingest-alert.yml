@@ -25,13 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: 印の受け口に届くか（合言葉なしで叩き、門の手前で弾かれていないかを見る）
-        run: |
-          for path in api/ingest-heartbeat.php api/push-notify.php cron/ingest-alert.php; do
-            curl -s -o b.txt -D h.txt -X POST -H 'Content-Type: application/json' -A 'pokemimi-push/1.0 (sync-data-worker)' \
-                 --data-binary '{"key":"x","task":"info","ok":true}' "https://pokemimi.com/${path}" -w "${path} %{http_code} %{content_type}\n" || true
-            grep -iE '^(server|cf-mitigated|cf-ray):' h.txt | tr -d '\r' | sed 's/^/    /'; head -c 80 b.txt | tr '\n' ' '; echo
-          done
       - name: 止まっていないか見る（止まったら知らせ、赤くする）
         env:
           KEY: ${{ secrets.PUSH_NOTIFY_KEY }}
