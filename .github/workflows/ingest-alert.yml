@@ -1,0 +1,53 @@
+# 大会の取り込みの見張り（2026-11-23 新設）
+#
+# なぜ要るか: 運営「いちばんの問題は公式の取得ができなくなって、何も動いていない！みたいな状況になること」。
+#   取り込み（sync-data-worker・3分おき）が動くたびに「生きている印」がポケミミへ届き、そのたびに止まった判定も回る。
+#   でも取り込みが**丸ごと**止まると印が1つも来ない＝判定も回らない。ここはその時の保険。
+#
+# 置き場所: 取り込みと同じ sync-data-worker に置く（合言葉 PUSH_NOTIFY_KEY がここにだけ登録されているため・2026-11-23）。
+#   取り込みのワークフロー（info / result / rank）とは別の定期実行なので、取り込みが落ちてもこちらは回る。
+#
+# 何をするか: 1時間に1度 ポケミミの cron/ingest-alert.php を叩く。
+#   - 止まった（bad）になった時に1回、直った時に1回、運営の端末へ知らせる（送り先はサイト設定 ingest_alert_user_ids）。
+#   - **どこかが止まっている間は、この Actions を赤くする**。赤は GitHub から運営にメールが届き、
+#     係（Claude）も /kickoff で `gh run list --workflow ingest-alert.yml` を見て気づく（記憶 ingest_alert_goes_to_owner_and_claude）。
+#
+# ⚠ 1時間に1度にしている理由: 非公開リポジトリの Actions は無料枠（月2,000分）を他の見張りと分け合う。
+#   3分おきの肩代わりはしない（取り込みの本体は sync-data-worker）。
+# ⚠ 合言葉 PUSH_NOTIFY_KEY はこのリポジトリの Secrets（取り込みが使っているのと同じ）。URL に入れない（記録に残る）。
+name: 大会の取り込みの見張り
+on:
+  schedule:
+    - cron: '20 * * * *'      # 毎時 20 分
+  workflow_dispatch:
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: 止まっていないか見る（止まったら知らせ、赤くする）
+        env:
+          KEY: ${{ secrets.PUSH_NOTIFY_KEY }}
+        run: |
+          set -u
+          UA='Mozilla/5.0 (compatible; pokemimi-cron/1.0)'
+          code=$(curl -sS --max-time 60 --retry 2 --retry-delay 15 -A "$UA" -X POST \
+                 -H "X-Pm-Key: ${KEY}" "https://pokemimi.com/cron/ingest-alert.php?cb=${RANDOM}" \
+                 -o r.json -w '%{http_code}') || code=000
+          if [ "$code" != "200" ]; then echo "::error ::見張りを呼べなかった (HTTP $code)"; head -c 300 r.json 2>/dev/null; exit 1; fi
+          python3 - <<'PY'
+          import json, sys
+          r = json.load(open('r.json'))
+          now = r.get('now') or {}
+          names = {'ok': '動いている', 'warn': '注意', 'bad': '止まっている', 'unknown': '確かめられない'}
+          print('判定:', r.get('status'), '／ 知らせ', len(r.get('notices') or []), '件 ／ 送れた', r.get('sent'), '通')
+          for k, v in now.items():
+              print(f'  {k}: {names.get(v, v)}')
+          bad = [k for k, v in now.items() if v == 'bad']
+          if r.get('status') == 'no_recipient':
+              print('::warning ::知らせる先（サイト設定 → アプリ）が空です')
+          if r.get('status') == 'send_failed':
+              print('::error ::知らせを送れませんでした'); sys.exit(1)
+          if bad:
+              print('::error ::取り込みが止まっています: ' + '、'.join(bad) + '（管理画面「今日の確認」を見てください）'); sys.exit(1)
+          PY
