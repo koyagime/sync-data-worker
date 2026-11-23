@@ -26,17 +26,21 @@ function stub(modPath, exports) {
 }
 stub('../src/browser', {
   async fetchJsonInBrowser(url) {
+    /* 公式に入れたかの確かめ（絞り込み無しの総数・2026-11-23）。実物の形（eventCount=9515）に合わせる */
+    if (!/event_type/.test(url)) return { status: 200, data: { code: 200, eventCount: 9515, event: [{ id: 1 }] } };
     const type = /event_type%5B%5D=(3%3A\d)/.exec(url)[1].replace('%3A', ':');
     const accepting = /accepting=(\w+)/.exec(url)[1];
     const offset = Number(/offset=(\d+)/.exec(url)[1]);
     const total = accepting === 'true' ? counts[type].t : counts[type].f;
     if (offset === 0) probes.push(`${type}:${accepting}`);
     else pages.push(`${type}:${accepting}:${offset}`);
-    if (offset >= total) return { status: 404, data: null };
+    /* 公式の「0件」は 404 の JSON（2026-11-23 実測）。本文の無い 404 は「読めていない」扱いになる */
+    if (offset >= total) return { status: 404, data: { code: 404, message: 'イベント情報が存在しません。' } };
     const n = Math.min(20, total - offset);
     const event = Array.from({ length: n }, (_, i) => ({ id: 1, date_id: offset + i, event_date_params: '20261001' }));
     return { status: 200, data: { eventCount: total, event } };
   },
+  getSessionInfo: () => ({ title: 'イベント | ポケモンカードゲーム プレイヤーズクラブ', cleared: true }),
   closeBrowserSession: async () => {}
 });
 /* ⚠ 本体の logger をそのまま鳴らすと、CI のログが**本番の実行と見分けられなくなる**。

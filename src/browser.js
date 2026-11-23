@@ -19,7 +19,11 @@ let globalPage = null;
  * Wait until the interstitial actually goes away instead of guessing. Polling the
  * title is free: it costs no extra requests to the origin.
  */
-const CF_INTERSTITIAL = /just a moment|attention required|checking your browser|cloudflare/i;
+/* ⚠ 2026-11-23: 以前は英語の題名しか知らず、日本語の確かめの画面（「しばらくお待ちください...」）を
+   「抜けた」と判断して進んでいた。判定は upstream_check.js の1か所に置く（テストから読めるように） */
+const { CF_INTERSTITIAL } = require('./upstream_check');
+/* 最後に見た題名と、確かめの画面を抜けたか（記録と「生きている印」に添えるだけ。判定には使わない） */
+const sessionInfo = { title: '', cleared: null };
 
 async function establishCloudflareSession(page) {
   logger.info(`Navigating to ${BASE_URL} to pass Cloudflare challenge...`);
@@ -39,15 +43,18 @@ async function establishCloudflareSession(page) {
       } catch (e) {
         continue; // navigating -- look again on the next tick
       }
+      if (title) sessionInfo.title = title;
       if (title && !CF_INTERSTITIAL.test(title)) {
         logger.info(`Cloudflare session established. Page title: "${title}"`);
+        sessionInfo.cleared = true;
         return true;
       }
     }
     logger.warn(`Cloudflare challenge still showing after 30s (attempt ${attempt}/3).`);
   }
 
-  logger.warn('Cloudflare の関門を抜けられませんでした。この回は取りに行きません（次の回で拾い直します）');
+  logger.warn(`Cloudflare の関門を抜けられませんでした（題名「${sessionInfo.title}」のまま）。返事の形で読めたかを確かめます`);
+  sessionInfo.cleared = false;
   return false;
 }
 
@@ -112,8 +119,12 @@ async function evalJsonFetch(page, url, options) {
         }
       });
 
+      /* ⚠ 2026-11-23: 404 の本文も読む。公式の「0件」は 404 {"code":404,"message":"イベント情報が存在しません。"}（JSON）。
+         本文を捨てると「本当に0件」と「読めずに404」が区別できない */
       if (response.status === 404) {
-        return { status: 404, data: null };
+        let body = null;
+        try { body = JSON.parse(await response.text()); } catch (e) { body = null; }
+        return { status: 404, data: body };
       }
 
       if (!response.ok) {
@@ -160,7 +171,8 @@ async function fetchJsonInBrowser(url, options = {}) {
   }
 
   if (result.status === 404) {
-    return { status: 404, data: null };
+    /* data は公式の JSON（0件の返事）か null。どちらかは upstream_check.isOfficialEmpty で見分ける */
+    return { status: 404, data: result.data || null };
   }
 
   if (result.error) {
@@ -227,7 +239,13 @@ async function closeBrowserSession() {
   }
 }
 
+/** 最後に見た題名と、確かめの画面を抜けたか（{title, cleared}）。記録用 */
+function getSessionInfo() {
+  return { title: sessionInfo.title, cleared: sessionInfo.cleared };
+}
+
 module.exports = {
+  getSessionInfo,
   resetSessionGivenUp,
   initBrowserSession,
   fetchJsonInBrowser,

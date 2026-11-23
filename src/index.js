@@ -4,6 +4,7 @@ const { runPlayerRankTask } = require('./tasks/player_rank');
 const { runTournamentResultTask } = require('./tasks/tournament_result');
 const { closeBrowserSession } = require('./browser');
 const { closePool } = require('./db');
+const { settleRead, sendHeartbeat } = require('./heartbeat');
 const logger = require('./logger');
 const fs = require('fs');
 const path = require('path');
@@ -83,27 +84,41 @@ async function main() {
 
   logger.info(`=== Executing TCG Runner Task: [${taskName || 'all'}] ===`);
 
+  /* 🚩 2026-11-23: 「公式を読めたか」を各仕事が返す。読めなければ連続失敗として数え（続いたら落とす＝メール）、
+     どちらの場合も「生きている印」をポケミミへ送る（管理画面の判定と運営への通知はポケミミ側）。
+     ⚠ 1回読めないだけでは落とさない（2026-08-14 ユーザー指示「取得できない時もあるわけだから、エラーにならないようにしとけば？」）。
+        すぐ判るのは印の側（ポケミミの管理画面が「読めなかった」をその場で出す）。 */
+  const hooks = {
+    onOk: noteUpstreamOk,
+    onFail: (task, reason) => {
+      const alert = noteUpstreamFailure(task, reason);
+      if (alert) logger.error(`公式を ${MAX_CONSECUTIVE_FAILURES} 回続けて読めていません（${task}）。自力で治っていないので落とします`);
+      return alert;
+    }
+  };
+  const settle = async (task, res) => {
+    const { fail } = await settleRead(task, res, hooks);
+    if (fail) process.exitCode = 1;
+  };
+  const resultRead = (res) => ({
+    readOk: !!res && !res.feedFailed,
+    total: res ? res.feedTotal : null,
+    reason: res && res.feedFailed ? `最近の大会一覧が取れなかった: ${res.feedReason || ''}` : '',
+    detail: res ? res.detail : ''
+  });
+
   try {
     switch (taskName) {
       case 'info':
-        await runTournamentInfoTask();
+        await settle('info', await runTournamentInfoTask());
         break;
       case 'rank':
-        await runPlayerRankTask();
+        await settle('rank', await runPlayerRankTask());
         break;
-      case 'result': {
-        const res = await runTournamentResultTask();
+      case 'result':
         /* フィードが取れなかった回は「0件」ではない。連続したら落とす */
-        if (res && res.feedFailed) {
-          if (noteUpstreamFailure(taskName, '最近の大会一覧が取れなかった')) {
-            logger.error(`最近の大会一覧が ${MAX_CONSECUTIVE_FAILURES} 回続けて取れていません。自力で治っていないので落とします`);
-            process.exitCode = 1;
-          }
-        } else {
-          noteUpstreamOk(taskName);
-        }
+        await settle('result', resultRead(await runTournamentResultTask()));
         break;
-      }
       default:
         logger.info('No specific task specified. Running all tasks sequentially...');
         await runTournamentInfoTask();
@@ -112,6 +127,10 @@ async function main() {
         break;
     }
   } catch (err) {
+    /* 途中で落ちた回も「読めなかった」と印に送る（届かなければポケミミ側で古いと判る） */
+    if (['info', 'rank', 'result'].includes(taskName)) {
+      await sendHeartbeat(taskName, { ok: false, detail: `途中で落ちた: ${err && err.message}` });
+    }
     /* 🚨 **「今回は取れなかった／送れなかった」は失敗ではない**（2026-08-14 ユーザー指示）。
      *
      *   この仕組みは 5分〜1時間おきに回り続ける。未処理ぶんは**サーバ側に残る**ので、

@@ -47,6 +47,11 @@ jobs:
       - name: 計器（本体を動かしてみる・通信なし）
         run: node test/rank_run_smoke.test.js
 
+      # 通信しない計器。公式を「読めた」と言ってよいかの判定（2026-11-23）。
+      # ここが赤なら、公式に入れずに0件でも「成功」で終わる形（11/21〜 実際にそうなっていた）。
+      - name: 計器（公式を読めたかの判定・生きている印・通信なし）
+        run: node test/read_check.test.js
+
       - name: Install Playwright Browsers & System Dependencies
         run: npx playwright install chromium --with-deps
 
@@ -54,6 +59,8 @@ jobs:
         env:
           API_SYNC_URL: ${{ secrets.API_SYNC_URL }}
           API_KEY: ${{ secrets.API_KEY }}
+          # 生きている印をポケミミへ送る合言葉（アプリへの通知と同じ。無ければ送らないだけ）
+          PUSH_NOTIFY_KEY: ${{ secrets.PUSH_NOTIFY_KEY }}
           HEADLESS: 'true'
         run: npm run rank
 

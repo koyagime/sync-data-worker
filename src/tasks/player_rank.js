@@ -4,6 +4,7 @@ const { fetchJsonInBrowser } = require('../browser');
 const { postApiSync } = require('../db');
 const logger = require('../logger');
 const { rankCycleVerdict, PAGES_PER_RUN, RANKING_PAGE_SIZE } = require('../rank_rules');
+const { classifyRankPage, unreadableError } = require('../upstream_check');
 
 /* ⚠ テストから別の場所を指せるようにしておく（本番の state を踏まないため） */
 const STATE_FILE = process.env.PLAYER_RANK_STATE_FILE
@@ -44,6 +45,9 @@ async function runPlayerRankTask() {
   const failures = [];
   let upstreamFailures = 0;   /* 公式サイト側（関門・403・メンテナンス）で落ちたリーグの数 */
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  /* 🚩 公式を読めたか（2026-11-23）。この回に読めた選手入りのページの数と、公式が言うページ数 */
+  let pagesRead = 0;
+  const seen = {};
 
   for (const [league, label] of Object.entries(LEAGUES)) {
     try {
@@ -72,9 +76,16 @@ async function runPlayerRankTask() {
       while (pagesFetched < PAGES_PER_RUN) {
         const pageNo = Math.floor(offset / RANKING_PAGE_SIZE) + 1;
         const url = `https://players.pokemon-card.com/get_player_ranking?league=${league}&offset=${offset}&pageNo=${pageNo}`;
-        const { status, data } = await fetchJsonInBrowser(url);
+        const res = await fetchJsonInBrowser(url);
+        const { data } = res;
 
-        if (status === 404 || !data || !data.result || data.result.length === 0) {
+        /* ⚠ 2026-11-23: 以前は「中身が無い・形が違う」も「終わり」にしていた＝読めなくても静かに止まった。
+           終わりは 404 か空の配列だけ。形が違えば「読めていない」として、このリーグを失敗にする */
+        const kind = classifyRankPage(res);
+        if (kind === 'bad') {
+          throw unreadableError(`ランキングの返事の形が違う（${label}・HTTP ${res.status}・${pageNo}ページ目）`);
+        }
+        if (kind === 'end') {
           reachedEnd = true;
           break;
         }
@@ -103,6 +114,7 @@ async function runPlayerRankTask() {
 
         allPlayers = allPlayers.concat(players);
         pagesFetched++;
+        pagesRead++;
         offset += players.length;
         /* 🚨 2026-09-24: 公式の `count` は **ページ数**であって人数ではない。
            実測（ブラウザで get_player_ranking を直接叩いた）:
@@ -185,6 +197,7 @@ async function runPlayerRankTask() {
       }
 
       saveState(state);
+      seen[label] = `${pagesInCycle}/${totalPages || '?'}ページ`;
 
     } catch (err) {
       failures.push(`${label}(${league}): ${err.message}`);
@@ -206,6 +219,12 @@ async function runPlayerRankTask() {
   }
 
   logger.info('--- Player Rank Import Task Completed ---');
+  /* 1ページも読めていないのに例外も無い＝公式が何も返さなかった。読めたとは言わない */
+  const detail = Object.entries(seen).map(([k, v]) => `${k} ${v}`).join('・');
+  if (pagesRead === 0) {
+    return { readOk: false, total: 0, reason: 'どのリーグも選手入りのページを1つも読めなかった' + (failures.length ? `（${failures.join(' / ').slice(0, 200)}）` : ''), detail };
+  }
+  return { readOk: true, total: pagesRead, reason: failures.length ? failures.join(' / ').slice(0, 300) : '', detail: `今回 ${pagesRead}ページ・` + detail };
 }
 
 module.exports = { runPlayerRankTask };

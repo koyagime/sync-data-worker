@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const { fetchJsonInBrowser } = require('../browser');
+const { fetchJsonInBrowser, getSessionInfo } = require('../browser');
+const { readEventCount, readOfficialTotal, isOfficialEmpty, unreadableError } = require('../upstream_check');
 const { postApiSync, getPool } = require('../db');
 const { sendEventNotifications } = require('../discord');
 const { notifyApp } = require('../app_push');
@@ -30,6 +31,11 @@ const FULL_SCAN_INTERVAL = parseInt(process.env.FULL_SCAN_INTERVAL || '1800', 10
    → 見に行く前に「いま見ている」印を残し、次の回はそれを見て譲る。
    印が古くなったら（＝前の回が落ちた）やり直す。 */
 const SCAN_LOCK_SECONDS = parseInt(process.env.SCAN_LOCK_SECONDS || '300', 10);
+
+/* 🚩 「公式に入れたか」の証拠（2026-11-23）。絞り込み無し・受付終了を含む全大会の総数。
+   実測 2026-11-23: eventCount=9515。全国の全大会なのでシーズンの切れ目でも0にならない。
+   1回あたり1リクエスト増える（総数だけを見る。全件は取らない）。 */
+const OFFICIAL_TOTAL_URL = 'https://players.pokemon-card.com/event_search?order=1&accepting=false&offset=0';
 
 const CATEGORIES = {
   city_league: {
@@ -84,11 +90,16 @@ async function fetchCategoryEvents(catConfig, accepting) {
 
   while (true) {
     const url = `https://players.pokemon-card.com/event_search?${queryStr}&accepting=${accepting}&offset=${offset}`;
-    const { status, data } = await fetchJsonInBrowser(url);
+    const res = await fetchJsonInBrowser(url);
+    const { data } = res;
 
-    if (status === 404 || !data || !data.event || data.event.length === 0) {
-      break;
+    /* ⚠ 2026-11-23: 以前は「404・中身が無い・形が違う」を全部「終わり」にしていた＝**読めなくても0件**に見えた。
+       終わりは「公式の0件の返事（404 の JSON）」か「空の配列」だけ。それ以外は読めていない */
+    if (isOfficialEmpty(res)) break;
+    if (readEventCount(res) === null) {
+      throw unreadableError(`大会の一覧の返事の形が違う（${catConfig.label}・HTTP ${res.status}・offset ${offset}）`);
     }
+    if (data.event.length === 0) break;
 
     allEvents = allEvents.concat(data.event);
     offset += data.event.length;
@@ -104,10 +115,9 @@ async function fetchCategoryEvents(catConfig, accepting) {
 async function probeCounts(catConfig) {
   const queryStr = Object.entries(catConfig.params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
   const one = async (accepting) => {
-    const { status, data } = await fetchJsonInBrowser(`https://players.pokemon-card.com/event_search?${queryStr}&accepting=${accepting}&offset=0`);
-    if (status === 404) return 0;                       /* 該当0件。エラーではない */
-    if (!data || typeof data.eventCount !== 'number') return null;
-    return data.eventCount;
+    const res = await fetchJsonInBrowser(`https://players.pokemon-card.com/event_search?${queryStr}&accepting=${accepting}&offset=0`);
+    /* 0件は公式の 404 の JSON のときだけ。⚠ 以前は 404 なら何でも0にしていた（読めない 404 も0件に見えた） */
+    return readEventCount(res);
   };
   return { t: await one('true'), f: await one('false') };
 }
@@ -152,8 +162,39 @@ async function saveEventsToDb(events, isActive) {
   return freed;
 }
 
+/**
+ * 公式に入れたかを確かめる（総数だけ・1リクエスト）。
+ * @returns {Promise<{ok:boolean, total:number|null, reason:string}>}
+ */
+async function probeOfficialTotal() {
+  try {
+    return readOfficialTotal(await fetchJsonInBrowser(OFFICIAL_TOTAL_URL));
+  } catch (err) {
+    return { ok: false, total: null, reason: `公式の総数を取りに行けなかった: ${err.message}` };
+  }
+}
+
+/**
+ * @returns {Promise<{readOk:boolean, total:number|null, reason:string, detail:string, title:string}>}
+ *   readOk=false は「公式を読めなかった」。index.js が連続失敗として数え、生きている印に「失敗」と送る。
+ *   ⚠ 受付中が本当に0件でも readOk は true（総数が読めているので）。ここで「0件」と「入れず0件」を分ける
+ */
 async function runTournamentInfoTask() {
   logger.info('--- Starting Tournament Info Task ---');
+
+  /* 🚩 まず公式に入れたかを確かめる（2026-11-23）。入れなければ大会の一覧は取りに行かない
+     （読めない回に取りに行っても「0件」に見えるだけで、向こうを押し返すことにもなる。2026-09-28 と同じ考え） */
+  const official = await probeOfficialTotal();
+  const title = (getSessionInfo && getSessionInfo().title) || '';
+  if (!official.ok) {
+    logger.warn(`公式を読めませんでした: ${official.reason}（最初の頁の題名「${title}」）。この回は大会の一覧を取りに行きません`);
+    logger.info('--- Tournament Info Task Completed (公式を読めず) ---');
+    return { readOk: false, total: official.total, reason: official.reason, detail: '', title };
+  }
+  logger.info(`公式を読めました: 全大会の総数（受付終了を含む）${official.total} 件`);
+
+  const problems = [];
+  const seen = {};
   const state = loadState();
   const nowSec = Math.floor(Date.now() / 1000);
   const forceNotify = process.env.FORCE_NOTIFY === 'true';
@@ -179,6 +220,7 @@ async function runTournamentInfoTask() {
         const verdict = decideFullScan(catState.counts || null, probe, nowSec - (catState.last_full_scan || 0), forceNotify);
         if (!verdict.need) {
           catState.counts = probe;
+          seen[cat.label] = `受付中 ${probe.t}`;
           logger.info(`Category [${cat.label}]: 変化なし（${verdict.why}）。全件は見ません`);
           state[catKey] = catState;
           saveState(state);
@@ -206,6 +248,7 @@ async function runTournamentInfoTask() {
 
       const activeEvents = await fetchCategoryEvents(cat, 'true');
       logger.info(`Category [${cat.label}]: Fetched ${activeEvents.length} active events.`);
+      seen[cat.label] = `受付中 ${activeEvents.length}`;
 
       const lastInactiveFetch = catState.last_inactive_fetch || 0;
       let inactiveEvents = [];
@@ -262,11 +305,18 @@ async function runTournamentInfoTask() {
       saveState(state);
 
     } catch (err) {
+      /* ⚠ 2026-11-23: 以前はここで飲み込むだけで、読めなくても「成功」で終わっていた。理由を持ち帰る */
+      problems.push(`${cat.label}: ${err.message}`);
       logger.error(`Error processing category [${cat.label}]:`, err.message);
     }
   }
 
   logger.info('--- Tournament Info Task Completed ---');
+  const detail = `全大会 ${official.total}件` + Object.entries(seen).map(([k, v]) => `・${k} ${v}`).join('');
+  if (problems.length) {
+    return { readOk: false, total: official.total, reason: problems.join(' / ').slice(0, 300), detail, title };
+  }
+  return { readOk: true, total: official.total, reason: '', detail, title };
 }
 
-module.exports = { runTournamentInfoTask, decideFullScan, FULL_SCAN_INTERVAL };
+module.exports = { runTournamentInfoTask, decideFullScan, FULL_SCAN_INTERVAL, OFFICIAL_TOTAL_URL };

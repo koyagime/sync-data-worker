@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { fetchJsonInBrowser, fetchHtmlInBrowser } = require('../browser');
 const { postApiSync, fetchBacklog } = require('../db');
 const { notifyResults } = require('../app_push');
+const { readResultFeed } = require('../upstream_check');
 
 /* 1回の実行で取り残しを何件ぶん追いかけるか。
    多すぎると1回が長くなり、少なすぎると行列が減らない。 */
@@ -137,9 +138,18 @@ async function runTournamentResultTask() {
         取れなかった回は feedFailed を立てて、呼び出し側が連続失敗として数える。 */
   let events = [];
   let feedFailed = false;
+  let feedTotal = null;
+  let feedReason = '';
   try {
-    const { status, data } = await fetchJsonInBrowser(feedUrl);
-    events = (status === 404 || !data || !Array.isArray(data.event)) ? [] : data.event;
+    /* ⚠ 2026-11-23: 以前は「404・中身が無い・形が違う」を全部「0件」にしていた＝**読めなくても成功**に見えた。
+       0件は公式の 404 の JSON のときだけ。形が違えば「取れなかった」に回す（呼び出し側が連続失敗として数える） */
+    const feed = readResultFeed(await fetchJsonInBrowser(feedUrl));
+    if (!feed.ok) {
+      const e = new Error(feed.reason);
+      throw e;
+    }
+    events = feed.events;
+    feedTotal = feed.total;
     if (events.length === 0) {
       logger.info('No recent event results in feed — going straight to the backlog.');
     } else {
@@ -147,6 +157,7 @@ async function runTournamentResultTask() {
     }
   } catch (e) {
     feedFailed = true;
+    feedReason = e.message;
     logger.warn(`最近の大会一覧が取れませんでした（0件ではなく**取れなかった**）: ${e.message}`);
     console.log('::warning::最近の大会一覧が取れませんでした。取り残しの消化だけ進めます');
   }
@@ -323,7 +334,7 @@ async function runTournamentResultTask() {
   logger.info(`Saved ${totalPlayersSaved} players and ${totalDecksSaved} decks to DB.`);
   logger.info('--- Tournament Result & Deck Import Task Completed ---');
 
-  return { feedFailed };
+  return { feedFailed, feedTotal, feedReason, detail: feedFailed ? '' : `結果の出た大会 ${feedTotal}件・今回保存 ${totalPlayersSaved}人` };
 }
 
 module.exports = { runTournamentResultTask };
