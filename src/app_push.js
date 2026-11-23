@@ -10,7 +10,6 @@
  *   PUSH_NOTIFY_KEY が無ければ**何もしない**（Discord の通知は今までどおり動く）。
  * ⚠ ここで失敗しても、取得と Discord を止めない。アプリの通知は「おまけの出口」。
  */
-const axios = require('axios');
 const logger = require('./logger');
 
 const DEFAULT_URL = 'https://pokemimi.com/api/push-notify.php';
@@ -19,7 +18,33 @@ const BATCH = 50;
    スクレイピング対策で**サイトの手前で 403**（HTML のエラーページ）になる。10/20 の開始から1通も届かなかった本当の原因はこれで、
    「合言葉の不一致」と思い込んで合言葉を2回作り直していた。合言葉が違うときの 403 は JSON の {"error":"forbidden"}。 */
 const UA = 'pokemimi-push/1.0 (sync-data-worker)';
-const postJson = (url, body) => axios.post(url, body, { timeout: 20000, headers: { 'User-Agent': UA } }).then((r) => r.data);
+/* ⚠ 送るのは curl（2026-11-23）。GitHub の実行機から node（axios）で送ると、ポケミミの手前の Cloudflare が
+   「Just a moment...」の確かめの画面（HTML の 403）を返し、通知も生きている印も1通も届かなかった。
+   同じ実行機・同じ名乗り・同じ中身でも curl なら受け口まで届く（調べた記録: heartbeat-probe・md_memory/190）。
+   名乗りや見出しを変えても node は通らない＝通信の作り（TLS の指紋）で見分けられている。
+   失敗の形は axios と同じ（err.response.status / headers['content-type'] / data）にして why() をそのまま使う。 */
+const { execFile } = require('child_process');
+function postJson(url, body, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const args = ['-sS', '-X', 'POST', '--max-time', String(Math.ceil(timeoutMs / 1000)), '-A', UA,
+      '-H', 'Content-Type: application/json', '--data-binary', '@-',
+      '-w', '\n%{http_code}\n%{content_type}', url];
+    const child = execFile('curl', args, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) return reject(err);
+      const lines = String(stdout).split('\n');
+      const contentType = lines.pop() || '';
+      const status = Number(lines.pop()) || 0;
+      const text = lines.join('\n');
+      let data = text;
+      if (contentType.includes('json')) { try { data = JSON.parse(text); } catch { /* 形ちがいは文字のまま */ } }
+      if (status >= 200 && status < 300) return resolve(data);
+      const e = new Error(`HTTP ${status}`);
+      e.response = { status, headers: { 'content-type': contentType }, data };
+      reject(e);
+    });
+    child.stdin.end(JSON.stringify(body));
+  });
+}
 
 /** 失敗の中身を言葉にする（403 が「合言葉」か「名乗りで弾かれた」かを分ける） */
 function why(err) {
@@ -104,4 +129,4 @@ async function notifyResults(rows, deps = {}) {
   return { sent, targets };
 }
 
-module.exports = { notifyApp, notifyResults, sqlDate, UA, why };
+module.exports = { notifyApp, notifyResults, sqlDate, UA, why, postJson };

@@ -12,9 +12,8 @@
  *   アプリへの通知と同じ PUSH_NOTIFY_KEY（Secrets に登録済み）。無ければ**送らない**（取り込みは止めない）。
  * ⚠ ここで失敗しても取り込みを止めない（印が届かなければ、ポケミミ側で「古い」と判る）。
  */
-const axios = require('axios');
 const logger = require('./logger');
-const { UA, why } = require('./app_push');
+const { why, postJson } = require('./app_push');
 
 const DEFAULT_URL = 'https://pokemimi.com/api/ingest-heartbeat.php';
 const TASKS = ['info', 'result', 'rank'];
@@ -31,7 +30,7 @@ async function sendHeartbeat(task, body, deps = {}) {
   if (!key) return { sent: false, skipped: 'no_key' };
   if (!TASKS.includes(task)) return { sent: false, skipped: 'unknown_task' };
   const url = env.HEARTBEAT_URL || DEFAULT_URL;
-  const post = deps.post || ((u, b) => axios.post(u, b, { timeout: 15000, headers: { 'User-Agent': UA } }).then((r) => r.data));
+  const post = deps.post || ((u, b) => postJson(u, b, 15000));   /* curl で送る（app_push.js の注意書き） */
   const payload = {
     key,
     task,

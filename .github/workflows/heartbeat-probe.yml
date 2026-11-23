@@ -26,9 +26,13 @@ jobs:
           const tries = [["印・そのまま", HB, base, {}], ["通知・そのまま", PN, base, {}],
             ["印・Accept */*", HB, base, { Accept: "*/*" }], ["印・圧縮なし", HB, base, { "Accept-Encoding": "identity" }],
             ["印・両方", HB, base, { Accept: "*/*", "Accept-Encoding": "identity" }]];
+          const { postJson, why } = require("./src/app_push");
           (async () => {
             for (const [name, url, b, hx] of tries) {
               try { const r = await axios.post(url, b, { timeout: 15000, headers: { "User-Agent": UA, ...hx } }); console.log(name, r.status); }
               catch (e) { const r = e.response || {}; const h = r.headers || {}; console.log(name, r.status, String(h["content-type"]||""), String(h["server"]||""), String(h["cf-mitigated"]||""), String(typeof r.data === "string" ? r.data : JSON.stringify(r.data)).slice(0, 120).replace(/\s+/g, " ")); }
+            }
+            for (const [name, url] of [["curl・印", HB], ["curl・通知", PN]]) {
+              try { await postJson(url, base); console.log(name, "通った"); } catch (e) { console.log(name, why(e)); }
             }
           })();'
