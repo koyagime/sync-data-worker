@@ -1,15 +1,15 @@
 {
   "master": {
-    "offset": 15600,
+    "offset": 16800,
     "cycle_started_at": "2026-11-19 21:11:36",
-    "cycle_pages": 780,
+    "cycle_pages": 840,
     "last_completed_at": "2026-11-19 12:47:44",
     "last_cycle_total": 16779
   },
   "senior": {
-    "offset": 0,
-    "cycle_started_at": null,
-    "cycle_pages": 0,
+    "offset": 1200,
+    "cycle_started_at": "2026-11-24 04:37:55",
+    "cycle_pages": 60,
     "last_completed_at": "2026-11-23 19:54:53",
     "last_cycle_total": 2367
   },
