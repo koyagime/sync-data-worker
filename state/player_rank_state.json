@@ -1,8 +1,8 @@
 {
   "master": {
-    "offset": 0,
-    "cycle_started_at": null,
-    "cycle_pages": 0,
+    "offset": 1200,
+    "cycle_started_at": "2026-11-25 09:34:16",
+    "cycle_pages": 60,
     "last_completed_at": "2026-11-24 15:32:23",
     "last_cycle_total": 17229
   },
