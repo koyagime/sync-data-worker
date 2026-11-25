@@ -5,7 +5,7 @@
  *   ① 鍵が無ければ1通も投げない（Discord だけの今の動きを壊さない）
  *   ② 日付は 'YYYY-MM-DD' にそろえて渡す（ポケミミは 'YYYYMMDD' を読めない）
  *   ③ 送り先が落ちても例外を投げない（取得と Discord を止めない）
- *   ④ 50件ずつに分けて渡す
+ *   ④ まとめて1回で渡す（端末ごとのまとめを効かせる）
  *
  * 使い方: node test/app_push.test.js
  */
@@ -48,13 +48,13 @@ const { notifyApp, notifyResults } = require('../src/app_push');
   assert.strictEqual(r.sent, 0);
   console.log('✅ 送り先が落ちても止まらない');
 
-  /* ④ 分割 */
+  /* ④ まとめて1回で渡す（2026-11-25: 50件ずつに分けたら、端末ごとのまとめが効かず1台に20通前後届いた） */
   let n = 0;
-  await notifyApp('city_new', Array.from({ length: 120 }, (_, i) => ev(i)), {
-    env: { PUSH_NOTIFY_KEY: 'k' }, post: async (u, b) => { n++; assert.ok(b.events.length <= 50); return {}; },
+  await notifyApp('city_new', Array.from({ length: 400 }, (_, i) => ev(i)), {
+    env: { PUSH_NOTIFY_KEY: 'k' }, post: async (u, b) => { n++; return {}; },
   });
-  assert.strictEqual(n, 3, `120件が ${n} 回に分かれた（3回のはず）`);
-  console.log('✅ 50件ずつに分ける');
+  assert.strictEqual(n, 1, `400件が ${n} 回に分かれた（1回のはず＝端末ごとのまとめを効かせる）`);
+  console.log('✅ 1回の実行の分はまとめて1回で渡す（1台に何通も届かない）');
 
   /* date_id が無い行は渡さない（ポケミミ側で捨てられるだけで、数が合わなくなる） */
   const got = [];
