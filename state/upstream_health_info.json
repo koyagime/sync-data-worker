@@ -1,6 +1,7 @@
 {
   "info": {
-    "consecutive_failures": 0,
-    "last_ok_at": "2026-11-25T11:17:37.652Z"
+    "consecutive_failures": 1,
+    "last_failure_at": "2026-11-25T11:20:49.685Z",
+    "last_reason": "シティリーグ: Cloudflare の関門を抜けられませんでした (https://players.pokemon-card.com/event_search?event_type%5B%5D=3%3A2&order=1&accepting=true&offset=387) / その他大会: Cloudflare の関門を抜けられませんでした (https://players.pokemon-card.com/event_search?event_type%5B%5D=3%3A7&order=1&accepting=true&offset=0)"
   }
 }
