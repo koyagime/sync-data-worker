@@ -143,8 +143,20 @@ function formatSqlDate(val) {
 }
 
 /** @returns {Array} 受け口が見つけた「満席が解けた」大会（公式への取得は増えない） */
+/* 公式の「受付中の一覧」（accepting=true）には、まだ受付前の大会（先着受付前・抽選受付前）も入る（2026-11-25 東京の受付前 85件すべてで確認）。
+   本当に応募できるのは「受付中」で「満席」でないときだけ */
+function isEntryOpen(e) {
+  const s = String((e && (e.entryStatus || e.entry_status)) || '');
+  return s.includes('受付中') && !s.includes('満席');
+}
+
+/**
+ * 受け口（api_sync.php）へ書く。返事の freed（満席が解けた）と opened（受付前 → 受付中に変わった・2026-11-25 から）を集めて返す。
+ * ⚠ 古い受け口は opened を返さない → 空のまま（受付開始は送られないが、害は無い）
+ * @returns {Promise<{freed: object[], opened: object[]}>}
+ */
 async function saveEventsToDb(events, isActive) {
-  if (!events || events.length === 0) return [];
+  if (!events || events.length === 0) return { freed: [], opened: [] };
 
   const formattedEvents = events.map(e => ({
     ...e,
@@ -153,13 +165,15 @@ async function saveEventsToDb(events, isActive) {
 
   const BATCH_SIZE = 100;
   const freed = [];
+  const opened = [];
   for (let i = 0; i < formattedEvents.length; i += BATCH_SIZE) {
     const batch = formattedEvents.slice(i, i + BATCH_SIZE);
     logger.info(`Sending batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(formattedEvents.length / BATCH_SIZE)} (${batch.length} events)...`);
     const res = await postApiSync('info', { events: batch, is_active: isActive });
     if (res && Array.isArray(res.freed)) freed.push(...res.freed);
+    if (res && Array.isArray(res.opened)) opened.push(...res.opened);
   }
-  return freed;
+  return { freed, opened };
 }
 
 /**
@@ -259,7 +273,7 @@ async function runTournamentInfoTask() {
       }
 
       // Save to DB via PHP bridge in batches
-      const freed = await saveEventsToDb(activeEvents, true);
+      const { freed, opened } = await saveEventsToDb(activeEvents, true);
       if (inactiveEvents.length > 0) {
         await saveEventsToDb(inactiveEvents, false);
       }
@@ -285,6 +299,19 @@ async function runTournamentInfoTask() {
         }
       }
 
+      /* 🚨 2026-11-25 運営「先着受付前でも通知来る？募集中だけ通知って可能？」: 受付前で一覧に載った大会は、本当に受付中になった時に
+         ここ（受け口が前の状態と見比べて opened で教える）で「受付開始」を送る。新しく載った時は下で city_soon（受付前）として送る。
+         Discord は今までどおり（変えない） */
+      if (opened.length > 0) {
+        if (shouldStaySilent) {
+          logger.info(`Category [${cat.label}]: 受付が始まった ${opened.length} 件は、復帰直後なので知らせません`);
+        } else {
+          logger.info(`Category [${cat.label}]: 受付が始まった大会 ${opened.length} 件。アプリに知らせます`);
+          if (catKey === 'city_league') await notifyApp('city_new', opened);
+          else if (catKey === 'other_events') await notifyApp('other_new', opened);
+        }
+      }
+
       if (newlyActive.length > 0) {
         if (shouldStaySilent) {
           logger.info(`Category [${cat.label}]: Muted ${newlyActive.length} notifications due to silent recovery mode.`);
@@ -292,8 +319,17 @@ async function runTournamentInfoTask() {
           logger.info(`Category [${cat.label}]: Found ${newlyActive.length} newly active events. Sending notifications to regional Webhooks...`);
           await sendEventNotifications(webhookUrl, cat.label, cat.headerMessage, newlyActive);
           /* ⚠ FORCE_NOTIFY（全件を流し直す）のときはアプリに送らない。端末に何十通も届く */
-          if (catKey === 'city_league' && !forceNotify) await notifyApp('city_new', newlyActive);
-          else if (catKey === 'other_events' && !forceNotify) await notifyApp('other_new', newlyActive);
+          /* 新しく載った大会: もう受付中なら「受付開始」（city_new）、まだ受付前なら「新しい大会（受付前）」（city_soon）。
+             受付前だった大会は、受付中になった時に上の opened で「受付開始」が届く */
+          const nowOpen = newlyActive.filter(isEntryOpen);
+          const notYet = newlyActive.filter((e) => !isEntryOpen(e));
+          if (catKey === 'city_league' && !forceNotify) {
+            await notifyApp('city_new', nowOpen);
+            await notifyApp('city_soon', notYet);
+          } else if (catKey === 'other_events' && !forceNotify) {
+            await notifyApp('other_new', nowOpen);
+            await notifyApp('other_soon', notYet);
+          }
         }
       }
 
@@ -319,4 +355,4 @@ async function runTournamentInfoTask() {
   return { readOk: true, total: official.total, reason: '', detail, title };
 }
 
-module.exports = { runTournamentInfoTask, decideFullScan, FULL_SCAN_INTERVAL, OFFICIAL_TOTAL_URL };
+module.exports = { runTournamentInfoTask, decideFullScan, FULL_SCAN_INTERVAL, OFFICIAL_TOTAL_URL, isEntryOpen };
