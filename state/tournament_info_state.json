@@ -352,13 +352,13 @@
       "1322:2003960",
       "1322:2004068"
     ],
-    "last_success": 1795683503,
+    "last_success": 1795683182,
     "counts": {
       "t": 4,
       "f": 246
     },
-    "last_full_scan": 1795683503,
-    "scan_started_at": 0
+    "last_full_scan": 1795683182,
+    "scan_started_at": 1795683572
   },
   "other_events": {
     "last_inactive_fetch": 1795671484,
