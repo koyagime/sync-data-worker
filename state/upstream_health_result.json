@@ -1,7 +1,6 @@
 {
   "result": {
-    "consecutive_failures": 1,
-    "last_failure_at": "2026-11-27T12:46:06.912Z",
-    "last_reason": "最近の大会一覧が取れなかった: Cloudflare の関門を抜けられませんでした (https://players.pokemon-card.com/event_search?order=4&result_resist=1&per_page=25&offset=0&event_type%5B%5D=3%3A1&event_type%5B%5D=3%3A2&event_type%5B%5D=3%3A7)"
+    "consecutive_failures": 0,
+    "last_ok_at": "2026-11-27T13:01:45.450Z"
   }
 }
