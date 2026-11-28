@@ -1,7 +1,6 @@
 {
   "info": {
-    "consecutive_failures": 1,
-    "last_failure_at": "2026-11-28T03:31:02.313Z",
-    "last_reason": "公式の総数を取りに行けなかった: Cloudflare の関門を抜けられませんでした (https://players.pokemon-card.com/event_search?order=1&accepting=false&offset=0)"
+    "consecutive_failures": 0,
+    "last_ok_at": "2026-11-28T03:34:21.818Z"
   }
 }
